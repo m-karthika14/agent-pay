@@ -1,0 +1,29 @@
+# Local development infrastructure for AgentPay.
+#
+# Only PostgreSQL is defined here. Per plan.md Section 3.9, we deliberately do not
+# add Redis, Kafka, or other infrastructure that the plan does not call for.
+#
+# Usage: docker compose up -d
+# Matches DATABASE_URL in .env.example: postgresql+asyncpg://postgres:postgres@localhost:5432/agentpay
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: agentpay-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agentpay
+    ports:
+      - "5432:5432"
+    volumes:
+      - agentpay-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  agentpay-postgres-data:

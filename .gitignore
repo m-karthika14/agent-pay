@@ -1,0 +1,56 @@
+# AgentPay repository ignore rules.
+# Keep secrets, build output, and local environment state out of version control.
+
+# --- Environment / secrets ---
+.env
+.env.local
+*.env
+!.env.example
+frontend/.env
+frontend/.env.local
+!frontend/.env.example
+
+# --- Python (backend) ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+backend/.venv/
+backend/dist/
+backend/build/
+
+# --- Node / frontend ---
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+
+# --- Database ---
+*.sqlite3
+postgres-data/
+
+# --- Alembic runtime (keep migration scripts, ignore local scratch) ---
+backend/alembic/versions/__pycache__/
+
+# --- Evaluation output ---
+eval/reports/*.json
+eval/reports/*.csv
+eval/reports/*.png
+!eval/reports/.gitkeep
+
+# --- Demo recordings (large binaries; do not commit to git) ---
+demo/*.mp4
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log

@@ -1,0 +1,7 @@
+/*
+ * AgentPay global stylesheet entry point.
+ * Tailwind CSS is loaded via the official Vite plugin (see vite.config.ts).
+ * Page/component-level styling is added phase by phase as pages are built
+ * (see plan.md Section 19 — Frontend Implementation).
+ */
+@import "tailwindcss";
