@@ -28,8 +28,14 @@ from app.schemas.cart import CartItemResponse, CartResponse
 from app.schemas.common import NotFoundError, ValidationError
 
 
-async def _to_cart_response(session: AsyncSession, cart: Cart) -> CartResponse:
-    """Build the API-facing CartResponse for a cart, including its items."""
+async def to_cart_response(session: AsyncSession, cart: Cart) -> CartResponse:
+    """
+    Build the API-facing CartResponse for a cart, including its items.
+
+    Public (not underscore-prefixed) because app.services.checkout_service
+    reuses this exact function rather than re-deriving the same response
+    shape (plan.md rule: reuse existing code instead of duplicating logic).
+    """
     result = await session.execute(
         select(CartItem, Product.name)
         .join(Product, Product.id == CartItem.product_id)
@@ -113,7 +119,7 @@ async def create_cart(
     )
     session.add(cart)
     await session.flush()
-    return await _to_cart_response(session, cart)
+    return await to_cart_response(session, cart)
 
 
 async def get_cart(session: AsyncSession, cart_id: uuid.UUID) -> CartResponse:
@@ -133,7 +139,7 @@ async def get_cart(session: AsyncSession, cart_id: uuid.UUID) -> CartResponse:
     cart = await session.get(Cart, cart_id)
     if cart is None:
         raise NotFoundError("CART_NOT_FOUND", f"No cart with id '{cart_id}'.")
-    return await _to_cart_response(session, cart)
+    return await to_cart_response(session, cart)
 
 
 async def add_cart_item(
@@ -200,7 +206,7 @@ async def add_cart_item(
         )
     await session.flush()
     await _recalculate_subtotal(session, cart)
-    return await _to_cart_response(session, cart)
+    return await to_cart_response(session, cart)
 
 
 async def update_cart_item_quantity(
@@ -243,7 +249,7 @@ async def update_cart_item_quantity(
     item.line_total_minor = quantity * item.unit_price_minor
     await session.flush()
     await _recalculate_subtotal(session, cart)
-    return await _to_cart_response(session, cart)
+    return await to_cart_response(session, cart)
 
 
 async def remove_cart_item(session: AsyncSession, cart_id: uuid.UUID, item_id: uuid.UUID) -> CartResponse:
@@ -271,4 +277,4 @@ async def remove_cart_item(session: AsyncSession, cart_id: uuid.UUID, item_id: u
     await session.delete(item)
     await session.flush()
     await _recalculate_subtotal(session, cart)
-    return await _to_cart_response(session, cart)
+    return await to_cart_response(session, cart)
