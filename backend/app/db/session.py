@@ -40,8 +40,16 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     Yield a scoped AsyncSession for the duration of a request or test.
 
     Usage (FastAPI): `session: AsyncSession = Depends(get_db_session)`.
-    The session is always closed on exit, including when the caller raises.
+    Implements one-unit-of-work-per-request: commits automatically if the
+    caller completes without raising, rolls back if it raises. Route
+    handlers should never need to call session.commit() themselves.
     """
     factory = get_session_factory()
     async with factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        else:
+            await session.commit()
