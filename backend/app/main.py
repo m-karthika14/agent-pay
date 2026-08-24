@@ -20,7 +20,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import carts, checkout, health, products
+from app.api.routes import carts, checkout, health, products, transactions, webhooks
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.schemas.common import ApiError, ApiErrorResponse, AgentPayError
@@ -53,6 +53,8 @@ app.include_router(health.router)
 app.include_router(products.router)
 app.include_router(carts.router)
 app.include_router(checkout.router)
+app.include_router(transactions.router)
+app.include_router(webhooks.router)
 
 
 @app.exception_handler(AgentPayError)

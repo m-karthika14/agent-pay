@@ -20,6 +20,12 @@ class CheckoutRequest(BaseModel):
     mandate_id: str = Field(description='Business-facing mandate_id (e.g. "M-001"), not the internal UUID.')
 
 
+class CompleteCheckoutRequest(BaseModel):
+    """Request body for POST /api/checkout/{cart_id}/complete (cart_id comes from the URL path)."""
+
+    mandate_id: str = Field(description='Business-facing mandate_id (e.g. "M-001"), not the internal UUID.')
+
+
 class CheckoutResponse(BaseModel):
     """
     Result of a successful request_checkout() call: the now-FROZEN cart,
