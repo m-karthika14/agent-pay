@@ -13,7 +13,7 @@ everything goes through Settings so secrets stay centralized and auditable.
 """
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,6 +64,23 @@ class Settings(BaseSettings):
 
     # Audit
     audit_hash_algorithm: str = Field(default="sha256", alias="AUDIT_HASH_ALGORITHM")
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_asyncpg_driver(cls, value: str) -> str:
+        """
+        Rewrite a plain `postgresql://` URL to `postgresql+asyncpg://`.
+
+        Managed database providers (e.g. Render's `fromDatabase` env var
+        linking) hand out a driver-agnostic `postgresql://` connection
+        string, but SQLAlchemy's async engine requires the `+asyncpg`
+        dialect suffix to be explicit. Normalizing here means deployment
+        platforms can link the database URL directly without anyone having
+        to hand-edit it into an incompatible format.
+        """
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
 
 
 @lru_cache

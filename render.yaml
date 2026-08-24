@@ -1,0 +1,62 @@
+# Render Blueprint for AgentPay's backend + managed PostgreSQL.
+#
+# Usage: in the Render dashboard, "New +" -> "Blueprint" -> select this repo.
+# Render reads this file and provisions both resources below in one step.
+# Secrets marked `sync: false` are NOT stored in this file (which is
+# committed to git) -- Render will prompt you to type them in during setup.
+#
+# After the first deploy, come back and update CORS_ORIGINS / FRONTEND_URL
+# once you know your Vercel URL (see docs/deployment.md walkthrough).
+
+databases:
+  - name: agentpay-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "17"
+
+services:
+  - type: web
+    name: agentpay-backend
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install uv && uv sync --frozen
+    startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: AgentPay
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agentpay-db
+          property: connectionString
+      - key: BACKEND_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: ED25519_PRIVATE_KEY_B64
+        sync: false
+      - key: ED25519_PUBLIC_KEY_B64
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: MCP_PUBLIC_URL
+        sync: false
+      - key: MCP_SERVER_NAME
+        value: AgentPay Merchant MCP
+      - key: INTENT_CONFIDENCE_THRESHOLD
+        value: "0.80"
+      - key: AUDIT_HASH_ALGORITHM
+        value: sha256
