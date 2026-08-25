@@ -4,7 +4,9 @@ transaction traces (plan.md Section 16, Section 18).
 """
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.schemas.cart import CartResponse
 
 
 class CheckoutSessionResponse(BaseModel):
@@ -44,8 +46,63 @@ class TransactionTraceEvent(BaseModel):
     created_at: datetime
 
 
+class OrderSummary(BaseModel):
+    """The order linking a transaction back to its authorizing cart and mandate."""
+
+    order_id: str
+    cart_id: str
+    mandate_id: str = Field(description='Business-facing mandate_id (e.g. "M-001").')
+    razorpay_order_id: str | None
+    status: str
+    amount_minor: int
+    currency: str
+
+
+class MandateSummary(BaseModel):
+    """
+    The signed mandate that authorized this transaction, decoded from its
+    persisted signed_payload (plan.md Section 24 "signed mandate" panel).
+
+    Unlike audit event payloads (only their hash is persisted, by design --
+    see app.audit.service), a mandate's full canonical payload IS persisted
+    (app.db.models.mandate.Mandate.signed_payload) precisely so it can be
+    reconstructed and displayed later; this is not a departure from the
+    Phase 1 audit-privacy design, just a different, already-existing artifact.
+    """
+
+    mandate_id: str
+    product_type: str
+    notes: str | None
+    max_amount_minor: int
+    allowed_categories: list[str]
+    status: str
+
+
+class BuyerSummary(BaseModel):
+    """The user who authorized this transaction (plan.md Section 24 "buyer" panel)."""
+
+    user_id: str
+    email: str
+    name: str
+
+
 class TransactionTraceResponse(BaseModel):
-    """A transaction's full ordered decision trace, for the merchant console / debugging."""
+    """
+    A transaction's full ordered decision trace plus enough context (order,
+    cart, mandate, buyer) to render the Merchant Console's Transaction view
+    (plan.md Section 19.2/24) from a single call.
+
+    Scope note: `events` carries event_type/decision/reason_code -- exactly
+    what's actually persisted (plan.md Section 1's Phase 1 audit design
+    stores only a payload_hash, not the raw payload, so a merchant
+    proposal's exact free-text reason or amount can't be recovered here for
+    a past transaction). `cart` shows the transaction's actual final,
+    frozen item list instead, which IS fully persisted and accurate.
+    """
 
     transaction: TransactionResponse
+    order: OrderSummary
+    cart: CartResponse
+    mandate: MandateSummary
+    buyer: BuyerSummary
     events: list[TransactionTraceEvent]

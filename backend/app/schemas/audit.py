@@ -30,7 +30,17 @@ class AuditEventInput(BaseModel):
 
 
 class AuditEventRecord(BaseModel):
-    """A fully-hashed audit event, ready to persist as an AuditEvent row."""
+    """
+    A fully-hashed audit event, ready to persist as an AuditEvent row.
+
+    Also reused (by app.services.audit_service) to serialize an
+    already-persisted row back out over the API for the Merchant Console's
+    Audit viewer (plan.md Section 24: "event, timestamp, decision, reason,
+    previous_hash, current_hash") -- `created_at` is only known once a row
+    is actually persisted, so it stays optional here and is populated by
+    the caller reading it back, not by app.audit.service.build_audit_event
+    (which runs before the row exists).
+    """
 
     event_id: str
     event_type: str
@@ -42,6 +52,7 @@ class AuditEventRecord(BaseModel):
     reason_code: str | None = None
     mandate_id: str | None = None
     order_id: str | None = None
+    created_at: datetime | None = None
 
 
 class ChainMismatch(BaseModel):

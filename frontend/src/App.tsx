@@ -1,21 +1,20 @@
+import { BrowserRouter } from 'react-router-dom'
+import { AppRoutes } from './routes/AppRoutes'
+
 /**
  * Root application composition for AgentPay.
  *
- * This is a Phase 0 placeholder: it only confirms the Vite + React + Tailwind
- * toolchain is wired correctly. Real routing (React Router) and pages
- * (HomePage, ProductPage, CheckoutPage, MerchantConsolePage, ...) are added
- * in Phase 2 / Phase 19 per plan.md Section 19 (Frontend Implementation).
+ * Phase 11 (plan.md Section 19.2): wires React Router around the Merchant
+ * Console's three pages. The buyer-facing storefront (HomePage,
+ * ProductPage, CartPage, CheckoutPage) is not part of this phase --
+ * plan.md Section 18 treats the MCP/API as the real buyer interface, not a
+ * human-facing storefront.
  */
 function App() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-white text-slate-900">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold">AgentPay</h1>
-        <p className="mt-2 text-slate-500">
-          Merchant-side authorization gateway — scaffold ready.
-        </p>
-      </div>
-    </main>
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
   )
 }
 

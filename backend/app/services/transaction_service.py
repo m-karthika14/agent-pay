@@ -10,10 +10,23 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.carts.service import to_cart_response
 from app.db.models.audit_event import AuditEvent
+from app.db.models.cart import Cart
+from app.db.models.mandate import Mandate
+from app.db.models.order import Order
 from app.db.models.transaction import Transaction
+from app.db.models.user import User
+from app.mandates.service import to_signed_mandate
 from app.schemas.common import NotFoundError
-from app.schemas.payment import TransactionResponse, TransactionTraceEvent, TransactionTraceResponse
+from app.schemas.payment import (
+    BuyerSummary,
+    MandateSummary,
+    OrderSummary,
+    TransactionResponse,
+    TransactionTraceEvent,
+    TransactionTraceResponse,
+)
 
 
 def _to_transaction_response(row: Transaction) -> TransactionResponse:
@@ -51,26 +64,56 @@ async def get_transaction(session: AsyncSession, transaction_id: uuid.UUID) -> T
 
 async def get_transaction_trace(session: AsyncSession, transaction_id: uuid.UUID) -> TransactionTraceResponse:
     """
-    Fetch a transaction plus every audit event recorded against its order,
-    in chronological order -- the full "why was this allowed/blocked" trace
-    (plan.md Section 49 — Observability for demo).
+    Fetch a transaction plus everything the Merchant Console's Transaction
+    view needs to render in one call (plan.md Section 19.2/24): the order,
+    the cart in its final frozen state, the mandate that authorized it, the
+    buyer, and the ordered audit decision trace.
 
     Args:
         session: Active AsyncSession.
         transaction_id: The transaction to trace.
 
     Returns:
-        TransactionTraceResponse with the transaction and its ordered events.
+        TransactionTraceResponse.
 
     Raises:
-        NotFoundError: If no transaction exists with that id.
+        NotFoundError: If no transaction, order, cart, mandate, or user
+            exists for the given transaction_id -- these are all expected
+            to exist together for any real transaction, so a missing one
+            indicates data corruption rather than a normal not-found case,
+            but is still reported as NotFoundError for a consistent API
+            error shape.
     """
-    row = await session.get(Transaction, transaction_id)
-    if row is None:
+    transaction_row = await session.get(Transaction, transaction_id)
+    if transaction_row is None:
         raise NotFoundError("TRANSACTION_NOT_FOUND", f"No transaction with id '{transaction_id}'.")
 
+    order_row = await session.get(Order, transaction_row.order_id)
+    if order_row is None:
+        raise NotFoundError("ORDER_NOT_FOUND", f"No order with id '{transaction_row.order_id}'.")
+
+    cart_row = await session.get(Cart, order_row.cart_id)
+    if cart_row is None:
+        raise NotFoundError("CART_NOT_FOUND", f"No cart with id '{order_row.cart_id}'.")
+    cart_response = await to_cart_response(session, cart_row)
+
+    mandate_row = await session.get(Mandate, order_row.mandate_id)
+    if mandate_row is None:
+        raise NotFoundError("MANDATE_NOT_FOUND", f"No mandate with id '{order_row.mandate_id}'.")
+    signed_mandate = to_signed_mandate(mandate_row)
+
+    buyer_row = await session.get(User, cart_row.user_id)
+    if buyer_row is None:
+        raise NotFoundError("USER_NOT_FOUND", f"No user with id '{cart_row.user_id}'.")
+
+    # Filtered by mandate_id, not order_id: checkout_service.py's pre-order
+    # events (HARD_POLICY_PASSED, CART_FROZEN, MERCHANT_PROPOSAL_CREATED,
+    # INTENT_GATE_*, CART_REVALIDATION_*) are recorded before any Order row
+    # exists, so they only ever carry mandate_id -- only later events
+    # (RAZORPAY_ORDER_CREATED onward) also carry order_id. mandate_id is set
+    # on every event throughout the whole flow, so it's the complete key.
     events_result = await session.execute(
-        select(AuditEvent).where(AuditEvent.order_id == row.order_id).order_by(AuditEvent.sequence)
+        select(AuditEvent).where(AuditEvent.mandate_id == mandate_row.id).order_by(AuditEvent.sequence)
     )
     events = [
         TransactionTraceEvent(
@@ -82,4 +125,26 @@ async def get_transaction_trace(session: AsyncSession, transaction_id: uuid.UUID
         for event in events_result.scalars().all()
     ]
 
-    return TransactionTraceResponse(transaction=_to_transaction_response(row), events=events)
+    return TransactionTraceResponse(
+        transaction=_to_transaction_response(transaction_row),
+        order=OrderSummary(
+            order_id=str(order_row.id),
+            cart_id=str(order_row.cart_id),
+            mandate_id=signed_mandate.payload.mandate_id,
+            razorpay_order_id=order_row.razorpay_order_id,
+            status=order_row.status,
+            amount_minor=order_row.amount_minor,
+            currency=order_row.currency,
+        ),
+        cart=cart_response,
+        mandate=MandateSummary(
+            mandate_id=signed_mandate.payload.mandate_id,
+            product_type=signed_mandate.payload.intent.product_type,
+            notes=signed_mandate.payload.intent.notes,
+            max_amount_minor=signed_mandate.payload.max_amount,
+            allowed_categories=signed_mandate.payload.allowed_categories,
+            status=mandate_row.status.value,
+        ),
+        buyer=BuyerSummary(user_id=str(buyer_row.id), email=buyer_row.email, name=buyer_row.name),
+        events=events,
+    )
