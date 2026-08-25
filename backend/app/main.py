@@ -14,7 +14,7 @@ logic itself.
 """
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 from app.api.routes import carts, checkout, health, products, transactions, webhooks
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.mcp.server import get_mcp_asgi_app, mcp
 from app.schemas.common import ApiError, ApiErrorResponse, AgentPayError
 
 configure_logging()
@@ -30,16 +31,33 @@ logger = logging.getLogger("agentpay")
 
 settings = get_settings()
 
+# Built once at import time: registers the six MCP tools (app.mcp.tools)
+# and returns the Streamable HTTP ASGI app, mounted below at "/mcp".
+mcp_asgi_app = get_mcp_asgi_app()
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    """Log startup/shutdown, for demo/ops visibility."""
+    """
+    Log startup/shutdown, and run the MCP session manager for the app's
+    lifetime.
+
+    The MCP Streamable HTTP transport's session manager has its own async
+    context manager (`mcp.session_manager.run()`) that must be active for
+    tool calls to work -- mounting the MCP ASGI app alone does not start it,
+    since FastAPI does not automatically propagate a mounted sub-app's own
+    lifespan. This is the SDK's documented pattern for combining an
+    MCPServer with an existing FastAPI application.
+    """
     logger.info("AgentPay backend started (env=%s)", settings.app_env)
-    yield
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(mcp.session_manager.run())
+        yield
     logger.info("AgentPay backend shutting down")
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app.mount("/mcp", mcp_asgi_app)
 
 app.add_middleware(
     CORSMiddleware,

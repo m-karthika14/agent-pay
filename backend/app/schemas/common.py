@@ -74,6 +74,17 @@ class AgentPayError(Exception):
         self.terminal = terminal
         self.retryable = retryable
 
+    def __str__(self) -> str:
+        """
+        Include the reason_code alongside the message.
+
+        REST route handlers never rely on this (app.main's exception handler
+        reads .reason_code/.message directly), but MCP tool errors surface to
+        the calling agent as the exception's string form, so Claude needs the
+        machine-readable code visible here too, not just the prose message.
+        """
+        return f"{self.reason_code}: {self.message}"
+
 
 class NotFoundError(AgentPayError):
     """Raised when a requested resource (product, cart, etc.) does not exist."""
