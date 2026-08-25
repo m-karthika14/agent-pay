@@ -58,7 +58,9 @@ async def _load_cart_or_raise(session: AsyncSession, cart_id: uuid.UUID) -> Cart
     return cart
 
 
-async def request_checkout(session: AsyncSession, cart_id: uuid.UUID, mandate_id: str) -> CheckoutResponse:
+async def request_checkout(
+    session: AsyncSession, cart_id: uuid.UUID, mandate_id: str, *, intent_gate_enabled: bool = True
+) -> CheckoutResponse:
     """
     Run AgentPay's deterministic checkout boundary for a cart.
 
@@ -85,6 +87,18 @@ async def request_checkout(session: AsyncSession, cart_id: uuid.UUID, mandate_id
         session: Active AsyncSession.
         cart_id: The cart to check out.
         mandate_id: Business-facing mandate_id authorizing this cart.
+        intent_gate_enabled: Whether a hard-check-passed merchant proposal
+            must also pass the Intent Gate before being applied. Defaults
+            to True (the real, production behavior). This exists ONLY for
+            eval/'s Cap-only vs Intent-aware arm comparison (plan.md Section
+            19.1) -- app.mcp.tools and the REST routes never pass this
+            argument, so Claude and other external callers can never reach
+            it. Setting it False does not weaken any hard check (amount,
+            category, inventory, mandate validity all still run
+            unconditionally); it only means a proposal that already passed
+            those hard checks is applied without also being checked against
+            the buyer's signed *intent* -- exactly the "Cap-only" arm's
+            definition (plan.md Section 19.1).
 
     Returns:
         CheckoutResponse with the now-FROZEN cart, its hash, and (on the
@@ -155,7 +169,7 @@ async def request_checkout(session: AsyncSession, cart_id: uuid.UUID, mandate_id
         )
 
         cart, proposal_outcome = await _run_merchant_advisory(
-            session, cart, signed_mandate, mandate_row, public_key_b64, mandate_id
+            session, cart, signed_mandate, mandate_row, public_key_b64, mandate_id, intent_gate_enabled
         )
 
     cart_response = await to_cart_response(session, cart)
@@ -171,6 +185,7 @@ async def _run_merchant_advisory(
     mandate_row: Mandate,
     public_key_b64: str,
     mandate_id: str,
+    intent_gate_enabled: bool,
 ) -> tuple[Cart, ProposalOutcome]:
     """
     Run plan.md Section 15 steps 9-13 for one freshly-frozen cart.
@@ -189,6 +204,8 @@ async def _run_merchant_advisory(
         public_key_b64: The merchant's Ed25519 public key.
         mandate_id: Business-facing mandate_id, passed through to the
             Merchant Revenue Agent and used for audit event linkage.
+        intent_gate_enabled: See request_checkout()'s docstring -- eval-only,
+            never reachable from MCP/REST.
 
     Returns:
         (cart, proposal_outcome) -- cart is the same row, re-frozen with a
@@ -206,9 +223,18 @@ async def _run_merchant_advisory(
 
     if agent_result["final_status"] != ProposalStatus.PROPOSAL_ALLOWED:
         proposal_outcome = ProposalOutcome(status=agent_result["final_status"])
-    else:
+    elif intent_gate_enabled:
         proposal_outcome = await _evaluate_proposal_via_intent_gate(
             session, cart, signed_mandate, mandate_row, agent_result["final_proposal"]
+        )
+    else:
+        # Cap-only arm (plan.md Section 19.1): a proposal that already
+        # passed AgentPay's own deterministic hard checks
+        # (app.services.merchant_service.evaluate_proposal) is applied
+        # without also being judged against the buyer's signed *intent* --
+        # the spending cap and hard policy still fully apply either way.
+        proposal_outcome = await _apply_proposal_without_intent_gate(
+            session, cart, mandate_row, agent_result["final_proposal"]
         )
 
     final_check = await run_final_revalidation(
@@ -297,17 +323,7 @@ async def _evaluate_proposal_via_intent_gate(
             ),
         )
 
-        await carts_service.merge_item_into_cart(session, cart, product, final_proposal["quantity"])
-        await freeze_cart(session, cart)
-        await append_event(
-            session,
-            AuditEventInput(
-                event_type="CART_FROZEN",
-                actor_type="SYSTEM",
-                payload={"cart_id": str(cart.id), "frozen_hash": cart.frozen_hash, "modified_by_proposal": True},
-                mandate_id=str(mandate_row.id),
-            ),
-        )
+        await _apply_proposal_to_cart(session, cart, mandate_row, final_proposal)
 
         return ProposalOutcome(
             status=ProposalStatus.PROPOSAL_ALLOWED,
@@ -371,6 +387,71 @@ async def _evaluate_proposal_via_intent_gate(
         reason=intent_decision.reason,
         reason_code=intent_decision.reason_code,
         intent_confidence=intent_decision.confidence,
+    )
+
+
+async def _apply_proposal_without_intent_gate(
+    session: AsyncSession, cart: Cart, mandate_row: Mandate, final_proposal: dict
+) -> ProposalOutcome:
+    """
+    Cap-only arm (plan.md Section 19.1): apply a hard-check-passed merchant
+    proposal directly, without consulting the Intent Gate.
+
+    Args:
+        session: Active AsyncSession.
+        cart: The frozen cart to modify. Mutated and re-frozen in place.
+        mandate_row: The persisted Mandate row.
+        final_proposal: A MerchantProposal-shaped dict (product_id,
+            quantity, reason) from run_merchant_agent.
+
+    Returns:
+        ProposalOutcome with status=PROPOSAL_ALLOWED and no
+        intent_confidence (the Intent Gate was never consulted). Only
+        MERCHANT_PROPOSAL_CREATED and CART_FROZEN are audited -- no
+        INTENT_GATE_* event exists for this proposal, so the audit trail
+        itself makes clear it was never judged against signed intent.
+    """
+    await append_event(
+        session,
+        AuditEventInput(
+            event_type="MERCHANT_PROPOSAL_CREATED",
+            actor_type="MERCHANT_AGENT",
+            payload={"cart_id": str(cart.id), "proposal": final_proposal, "intent_gate_enabled": False},
+            mandate_id=str(mandate_row.id),
+        ),
+    )
+    await _apply_proposal_to_cart(session, cart, mandate_row, final_proposal)
+    return ProposalOutcome(
+        status=ProposalStatus.PROPOSAL_ALLOWED,
+        product_id=final_proposal["product_id"],
+        quantity=final_proposal["quantity"],
+        reason=final_proposal["reason"],
+    )
+
+
+async def _apply_proposal_to_cart(
+    session: AsyncSession, cart: Cart, mandate_row: Mandate, final_proposal: dict
+) -> None:
+    """
+    Apply an approved merchant proposal to the cart and re-freeze it
+    (plan.md Section 15 step 12).
+
+    Shared by the Intent-Gate-ALLOW path and the Cap-only arm's auto-apply
+    path -- the mechanics of "merge the item in, re-freeze, audit
+    CART_FROZEN" are identical either way; only how a proposal got approved
+    differs (handled by each caller before this is invoked).
+    """
+    product = await session.get(Product, uuid.UUID(final_proposal["product_id"]))
+    await carts_service.merge_item_into_cart(session, cart, product, final_proposal["quantity"])
+    await freeze_cart(session, cart)
+    await append_event(
+        session,
+        AuditEventInput(
+            event_type="CART_FROZEN",
+            actor_type="SYSTEM",
+            payload={"cart_id": str(cart.id), "frozen_hash": cart.frozen_hash, "modified_by_proposal": True},
+            mandate_id=str(mandate_row.id),
+        ),
     )
 
 

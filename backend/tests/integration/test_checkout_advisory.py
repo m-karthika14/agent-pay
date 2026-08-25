@@ -121,6 +121,34 @@ async def test_no_candidates_leaves_cart_untouched() -> None:
     assert result.cart.subtotal_minor == fixture["original_subtotal"]
 
 
+async def test_cap_only_arm_auto_applies_proposal_without_consulting_intent_gate() -> None:
+    """
+    intent_gate_enabled=False (the Cap-only eval arm, plan.md Section 19.1)
+    applies a hard-check-passed proposal directly -- the Intent Gate's
+    Gemini call is never even patched here, so if the code tried to call it
+    unmocked, this test would either hit real Gemini or hang/error; it
+    doesn't, proving the gate is genuinely skipped, not just given a
+    favorable mock.
+    """
+    fixture = await _build_fixture()
+    factory = get_session_factory()
+    async with factory() as session:
+        with (
+            patch(MERCHANT_PATCH_TARGET, new=AsyncMock(return_value=_merchant_candidates(fixture["candidate_id"]))),
+            patch(INTENT_PATCH_TARGET, new=AsyncMock(side_effect=AssertionError("Intent Gate must not be called"))),
+        ):
+            result = await request_checkout(
+                session, fixture["cart_id"], fixture["mandate_id"], intent_gate_enabled=False
+            )
+        await session.commit()
+
+    assert result.proposal.status == ProposalStatus.PROPOSAL_ALLOWED
+    assert result.proposal.product_id == fixture["candidate_id"]
+    assert result.proposal.intent_confidence is None
+    expected_total = fixture["original_subtotal"] + fixture["candidate_price"]
+    assert result.cart.subtotal_minor == expected_total
+
+
 async def test_intent_gate_allow_applies_proposal_and_reflects_new_total() -> None:
     """An Intent-Gate-ALLOWed proposal is applied to the cart and the new subtotal/hash reflect it."""
     fixture = await _build_fixture()
