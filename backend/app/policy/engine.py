@@ -58,7 +58,8 @@ async def run_hard_checks(
       check_idempotency apply -- a second checkout request on an
       already-frozen cart is either a tamper attempt (CART_HASH_MISMATCH)
       or a duplicate request (IDEMPOTENCY_DUPLICATE); both BLOCK.
-    - OPEN (first checkout request): check_mandate, check_category, and
+    - OPEN (first checkout request): check_mandate,
+      check_mandate_not_reused_by_another_cart, check_category, and
       check_inventory run in sequence.
     """
     if cart.status == CART_STATUS_FROZEN:
@@ -73,6 +74,14 @@ async def run_hard_checks(
     mandate_result = checks.check_mandate(signed_mandate, mandate_row, public_key_b64, cart)
     if not mandate_result.passed:
         return _block(mandate_result)
+
+    # Phase 10: block reusing an ACTIVE-but-unpaid mandate to freeze a
+    # second, different cart -- see check_mandate_not_reused_by_another_cart's
+    # docstring for why this can't rely on mandate.single_use consumption
+    # alone (that only happens at payment capture, much later).
+    reuse_result = await checks.check_mandate_not_reused_by_another_cart(session, cart, mandate_row)
+    if not reuse_result.passed:
+        return _block(reuse_result)
 
     category_result = await checks.check_category(session, cart, allowed_categories)
     if not category_result.passed:

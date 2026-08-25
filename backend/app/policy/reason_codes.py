@@ -43,3 +43,12 @@ PROPOSAL_INTENT_VIOLATION = "PROPOSAL_INTENT_VIOLATION"
 PROPOSAL_AMBIGUOUS_INTENT = "PROPOSAL_AMBIGUOUS_INTENT"
 PROPOSAL_LOW_CONFIDENCE = "PROPOSAL_LOW_CONFIDENCE"
 PROPOSAL_GATEWAY_ERROR = "PROPOSAL_GATEWAY_ERROR"
+
+# --- Mandate reuse across carts (Phase 10) ---
+# Found by the adversarial suite (eval/scenarios.json's cap_splitting
+# cases): single-use enforcement previously only applied at payment capture
+# (app.mandates.service.consume_mandate), leaving a window where one
+# ACTIVE-but-unpaid mandate could freeze a *second*, different cart. This
+# code is for app.policy.checks.check_mandate_not_reused_by_another_cart,
+# which closes that window at request_checkout() time instead.
+MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART = "MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART"

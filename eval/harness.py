@@ -89,6 +89,7 @@ class PersonaRunResult:
     category: str  # "normal" | "adversarial"
     model_invoked: bool
     hard_check_blocked: bool
+    mandate_max_amount_minor: int = 0  # the authorized spending cap -- Ceiling Drift's denominator
     hard_check_reason_code: str | None = None
     proposal_status: str | None = None
     proposal_reason_code: str | None = None
@@ -127,14 +128,24 @@ async def _get_product_by_sku(session: AsyncSession, sku: str) -> Product:
     return product
 
 
-def _mandate_payload_for(persona: dict, merchant_id: uuid.UUID, run_suffix: str) -> MandatePayload:
-    """Build this run's unique, signed mandate payload from a persona's frozen mandate fields."""
+def _mandate_payload_for(
+    persona: dict, merchant_id: uuid.UUID, run_suffix: str, *, max_amount_override: int | None = None
+) -> MandatePayload:
+    """
+    Build this run's unique, signed mandate payload from a persona's frozen
+    mandate fields.
+
+    max_amount_override lets eval/sensitivity.py rerun a persona at a
+    scaled spending cap (plan.md Section 19.3's -30%/baseline/+30% sweep)
+    without duplicating this function -- every other mandate field stays
+    exactly as frozen in personas.json.
+    """
     m = persona["mandate"]
     return MandatePayload(
         mandate_id=f"EVAL-{persona['persona_id']}-{run_suffix}",
         merchant_id=str(merchant_id),
         currency="INR",
-        max_amount=m["max_amount_minor"],
+        max_amount=max_amount_override if max_amount_override is not None else m["max_amount_minor"],
         allowed_categories=m["allowed_categories"],
         allow_addons=m["allow_addons"],
         delivery_requirement=m["delivery_requirement"],
@@ -162,7 +173,9 @@ def _apply_completion_rule(persona: dict, checkout: CheckoutResponse, starting_s
     raise ValueError(f"Unknown completion_rule type: {rule_type!r}")
 
 
-async def run_persona(persona: dict, *, arm: str, intent_gate_enabled: bool) -> PersonaRunResult:
+async def run_persona(
+    persona: dict, *, arm: str, intent_gate_enabled: bool, max_amount_override: int | None = None
+) -> PersonaRunResult:
     """
     Run one persona through one arm: create its mandate and starting cart,
     call request_checkout(), and score the result against the persona's
@@ -174,6 +187,8 @@ async def run_persona(persona: dict, *, arm: str, intent_gate_enabled: bool) -> 
             purely descriptive; intent_gate_enabled is what actually
             controls behavior.
         intent_gate_enabled: Passed straight through to request_checkout().
+        max_amount_override: If given, use this spending cap instead of the
+            persona's frozen one -- eval/sensitivity.py's -30%/+30% sweep.
 
     Returns:
         PersonaRunResult describing what happened.
@@ -184,7 +199,7 @@ async def run_persona(persona: dict, *, arm: str, intent_gate_enabled: bool) -> 
     async with factory() as session:
         merchant, user = await _get_urbannest_context(session)
 
-        payload = _mandate_payload_for(persona, merchant.id, run_suffix)
+        payload = _mandate_payload_for(persona, merchant.id, run_suffix, max_amount_override=max_amount_override)
         await create_mandate(session, payload, user.id, merchant.id)
         await session.commit()
 
@@ -213,6 +228,7 @@ async def run_persona(persona: dict, *, arm: str, intent_gate_enabled: bool) -> 
                 category=persona["category"],
                 model_invoked=False,
                 hard_check_blocked=True,
+                mandate_max_amount_minor=payload.max_amount,
                 hard_check_reason_code=exc.reason_code,
                 starting_subtotal_minor=starting_subtotal,
                 matched_expectation=matched,
@@ -226,6 +242,7 @@ async def run_persona(persona: dict, *, arm: str, intent_gate_enabled: bool) -> 
             category=persona["category"],
             model_invoked=True,
             hard_check_blocked=False,
+            mandate_max_amount_minor=payload.max_amount,
             proposal_status=checkout.proposal.status.value if checkout.proposal else None,
             proposal_reason_code=checkout.proposal.reason_code if checkout.proposal else None,
             starting_subtotal_minor=starting_subtotal,

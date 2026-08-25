@@ -157,6 +157,10 @@ async def request_checkout(
     proposal_outcome: ProposalOutcome | None = None
 
     if not was_already_frozen:
+        # Record which mandate froze this cart (Phase 10) so
+        # check_mandate_not_reused_by_another_cart can detect this mandate
+        # being reused for a second, different cart on a later call.
+        cart.mandate_id = mandate_row.id
         cart = await freeze_cart(session, cart)
         await append_event(
             session,

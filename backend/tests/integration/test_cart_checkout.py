@@ -295,6 +295,33 @@ async def test_duplicate_checkout_request_is_rejected() -> None:
     assert second_response.json()["error"]["code"] == "IDEMPOTENCY_DUPLICATE"
 
 
+async def test_mandate_cannot_be_reused_to_freeze_a_second_cart() -> None:
+    """
+    Phase 10 regression: an ACTIVE-but-unpaid mandate must not be reusable
+    to freeze a second, DIFFERENT cart -- found by the adversarial suite
+    (eval/scenarios.json's cap_splitting cases). Distinct from the
+    duplicate-checkout test above: that one retries the SAME cart; this one
+    uses the SAME mandate against a brand-new cart.
+    """
+    merchant, product, user = await _create_fixture_data()
+    mandate_id = await _create_mandate_for(merchant, user, max_amount=500_000)
+
+    async with await _client() as client:
+        first_cart_id = await _create_cart_with_item(client, merchant, product, user, quantity=1)
+        first_response = await client.post(
+            "/api/checkout/request", json={"cart_id": first_cart_id, "mandate_id": mandate_id}
+        )
+        assert first_response.status_code == 200
+
+        second_cart_id = await _create_cart_with_item(client, merchant, product, user, quantity=1)
+        second_response = await client.post(
+            "/api/checkout/request", json={"cart_id": second_cart_id, "mandate_id": mandate_id}
+        )
+
+    assert second_response.status_code == 400
+    assert second_response.json()["error"]["code"] == "MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART"
+
+
 async def test_cart_tampered_after_freeze_is_blocked() -> None:
     """plan.md Phase 3 acceptance: 'modified cart fails' (frozen hash != final hash -> BLOCK)."""
     merchant, product, user = await _create_fixture_data()

@@ -3,8 +3,18 @@ Purpose: ORM model for shopping carts.
 
 `frozen_hash` is the SHA-256 hash computed by app.carts.freeze in Phase 3
 when `request_checkout` freezes the cart. It is a separate artifact from the
-mandate (plan.md Rule 4) — carts and mandates are linked only through a
-checkout/order, never by embedding one inside the other.
+mandate (plan.md Rule 4) — the mandate never embeds cart_hash, and this
+model never embeds mandate content.
+
+`mandate_id` (added in Phase 10, after the adversarial suite found a real
+gap) records which mandate a cart was FROZEN under, once frozen. It exists
+solely so app.policy.checks.check_mandate_not_reused_by_another_cart can
+detect and block an ACTIVE-but-unpaid mandate being reused to freeze a
+*second*, different cart -- single-use enforcement previously only applied
+at payment capture (app.mandates.service.consume_mandate), leaving a window
+where one mandate could authorize freezing multiple carts before any of
+them was ever paid. Set once, at first freeze, by
+app.services.checkout_service.request_checkout(); never set for an OPEN cart.
 
 Cart business logic (create/add-item/freeze) is built in Phase 2/3; this
 model only defines the schema needed now for Phase 1's PostgreSQL setup.
@@ -30,6 +40,10 @@ class Cart(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     merchant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False
+    )
+    # Set at first freeze only -- see module docstring. NULL for OPEN carts.
+    mandate_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mandates.id"), nullable=True
     )
     # e.g. "OPEN" or "FROZEN" (plan.md Section 10.3/10.4). Modeled as a plain
     # string here since the cart status lifecycle is defined in Phase 2/3.

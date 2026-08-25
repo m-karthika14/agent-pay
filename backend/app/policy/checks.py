@@ -21,12 +21,17 @@ CART (not a single mandate), so each gets its own real function:
 check_category (a cart can hold items across multiple categories, which a
 single verify_mandate() call cannot express), check_inventory,
 check_cart_integrity, and check_idempotency.
+
+check_mandate_not_reused_by_another_cart (Phase 10) is a fifth cart-level
+check, added after the adversarial suite found that single-use enforcement
+previously only applied at payment capture -- see its own docstring.
 """
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.carts.freeze import verify_cart_integrity as _verify_cart_integrity
+from app.core.constants import CART_STATUS_FROZEN
 from app.db.models.cart import Cart
 from app.db.models.cart_item import CartItem
 from app.db.models.inventory import Inventory
@@ -191,3 +196,45 @@ def check_idempotency(cart: Cart, current_hash: str) -> PolicyCheckResult:
         reason_code=reason_codes.IDEMPOTENCY_DUPLICATE,
         reason=f"Cart '{cart.id}' was already checked out (frozen_hash={current_hash}).",
     )
+
+
+async def check_mandate_not_reused_by_another_cart(
+    session: AsyncSession, cart: Cart, mandate_row: Mandate
+) -> PolicyCheckResult:
+    """
+    Verify this mandate has not already been used to freeze a DIFFERENT
+    cart (Phase 10 -- found by the adversarial suite's cap_splitting cases).
+
+    Single-use enforcement (plan.md Rule 7 / mandate.single_use) previously
+    only applied at payment capture (app.mandates.service.consume_mandate),
+    which only marks a mandate CONSUMED once its transaction is actually
+    paid. That left a window: an ACTIVE-but-unpaid mandate could be reused
+    via request_checkout() to freeze a second, different cart, and both
+    carts could independently go on to request a Razorpay order (since
+    idempotency there is keyed per-cart, not per-mandate). This check closes
+    that window at the earlier, checkout-freeze point instead of relying
+    solely on payment-time consumption.
+
+    Args:
+        session: Active AsyncSession.
+        cart: The cart about to be frozen (still OPEN).
+        mandate_row: The persisted Mandate row authorizing this cart.
+
+    Returns:
+        PolicyCheckResult; passed=False
+        (MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART) if any OTHER cart is
+        already FROZEN under this same mandate.
+    """
+    result = await session.execute(
+        select(Cart.id).where(
+            Cart.mandate_id == mandate_row.id, Cart.id != cart.id, Cart.status == CART_STATUS_FROZEN
+        )
+    )
+    existing_cart_id = result.scalars().first()
+    if existing_cart_id is not None:
+        return PolicyCheckResult(
+            passed=False,
+            reason_code=reason_codes.MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART,
+            reason=f"Mandate '{mandate_row.mandate_id}' already froze a different cart ('{existing_cart_id}').",
+        )
+    return PolicyCheckResult(passed=True)

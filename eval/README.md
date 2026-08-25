@@ -1,5 +1,11 @@
 # AgentPay Evaluation Harness
 
+Phase 9 built the harness itself; Phase 10 (plan.md Section 20-22 / final.md
+Phase 10) builds the metrics computed on top of it. See "Metrics (Phase 10)"
+below for the primary result and the adversarial suite.
+
+## Harness (Phase 9)
+
 Phase 9 (plan.md Section 19 / final.md Phase 9): a harness that drives the
 real backend (`app.services.checkout_service.request_checkout()`) through a
 frozen buyer persona panel, comparing two arms:
@@ -74,6 +80,67 @@ transaction be approved, and at what final amount -- via
 Test Mode order per run (already covered by Phase 4/5's tests), so eval
 runs stay fast and side-effect-free outside the database.
 
-Metrics computation on top of these reports (Mandate Ceiling Drift,
-completion/abandonment/escalation rates, the ~30-case adversarial suite,
-the sensitivity sweep) is Phase 10's job, not this harness's.
+## Metrics (Phase 10)
+
+### Primary metric -- Mandate Ceiling Drift
+
+```
+Ceiling Drift = Final Completed Spend / Authorized Spending Cap
+```
+
+`ceiling_drift.py` computes this per persona and as a mean, per arm, from
+`harness.py`'s run results. Denominator rule (plan.md Section 20, strictly
+enforced): only `completed=True` runs are included. An abandoned run is
+**never** counted as ₹0 -- `abandonment.py` reports abandonment as its own
+separate rate instead.
+
+### Supporting metrics
+
+- `abandonment.py` -- abandonment rate + which personas abandoned and why,
+  per arm.
+- `escalation.py` -- correct escalation rate, computed from the adversarial
+  suite's `expected_outcome == "ESCALATION_REQUIRED"` cases.
+- `violations_caught` / `violations_attempted` -- from the adversarial suite
+  as a whole.
+
+### Adversarial suite (`scenarios.json` + `adversarial.py`)
+
+~30 frozen attack/edge-case scenarios across the 15 categories in plan.md
+Section 22 (overspend, cap splitting, expired mandate, replay, wrong
+merchant, wrong category, price change, cart modification, duplicate
+submit, prompt injection, currency mismatch, unit confusion, out of stock,
+merchant upsell, duplicate payment). Supporting evidence, not the primary
+causal claim (plan.md Section 21) -- the attacks were authored by us.
+
+Run: `uv run python eval/run_adversarial_suite.py` -> `eval/reports/adversarial_suite.json`.
+
+**Known finding (not fixed as part of Phase 10, flagged for a decision):**
+two cases (`cap_splitting_reuse_after_success`,
+`cap_splitting_reuse_before_completion`) currently fail. AgentPay's
+single-use enforcement only marks a mandate CONSUMED at payment capture
+(`app.mandates.service.consume_mandate`, called from webhook reconciliation)
+-- an ACTIVE-but-unpaid mandate can currently be reused to freeze a
+*second*, different cart via `request_checkout()`. This is a real gap, not
+a test bug; see the main conversation/phase report for the fix-or-document
+decision.
+
+### Sensitivity sweep (`sensitivity.py`)
+
+Reruns the normal-category personas at the spending cap scaled by
+-30%/baseline/+30% (plan.md Section 19.3) -- the cap is swept because it is
+literally Ceiling Drift's denominator. Do not change the evaluation
+architecture after observing these results.
+
+Run: `uv run python eval/sensitivity.py` -> `eval/reports/sensitivity.json`.
+
+### Everything at once
+
+```bash
+uv run python eval/metrics.py
+```
+
+Runs both arms, the full adversarial suite, and the sensitivity sweep, and
+writes the one consolidated report the pitch deck's numbers should be read
+from: `eval/reports/metrics_summary.json`. Every number in it traces back
+to an actual run recorded in that file -- per plan.md Section 31, no
+evaluation number is ever invented.
