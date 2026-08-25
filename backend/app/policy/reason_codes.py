@@ -32,3 +32,14 @@ INVENTORY_INVALID = "INVENTORY_INVALID"
 # --- Terminal transaction violations (Phase 3) ---
 TRANSACTION_BLOCKED_HARD_POLICY = "TRANSACTION_BLOCKED_HARD_POLICY"
 TRANSACTION_BLOCKED_POST_REVALIDATION = "TRANSACTION_BLOCKED_POST_REVALIDATION"
+
+# --- Intent Gate outcomes (Phase 7) ---
+# PROPOSAL_INTENT_VIOLATION and PROPOSAL_AMBIGUOUS_INTENT reflect Gemini's
+# own classification (BLOCK / ESCALATE respectively). PROPOSAL_LOW_CONFIDENCE
+# and PROPOSAL_GATEWAY_ERROR are assigned by app.intent.gate's deterministic
+# wrapper -- never by Gemini itself -- so the reason-code vocabulary stays
+# fixed regardless of what free-text the model returns (plan.md Section 11.3).
+PROPOSAL_INTENT_VIOLATION = "PROPOSAL_INTENT_VIOLATION"
+PROPOSAL_AMBIGUOUS_INTENT = "PROPOSAL_AMBIGUOUS_INTENT"
+PROPOSAL_LOW_CONFIDENCE = "PROPOSAL_LOW_CONFIDENCE"
+PROPOSAL_GATEWAY_ERROR = "PROPOSAL_GATEWAY_ERROR"

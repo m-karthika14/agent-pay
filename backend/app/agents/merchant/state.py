@@ -1,0 +1,50 @@
+"""
+Purpose: LangGraph state definition for the Merchant Revenue Agent
+(plan.md Section 13.1).
+
+A TypedDict (LangGraph's standard state shape) rather than a live ORM/session
+object -- state must stay plain, serializable data so LangGraph can track
+and pass it between nodes. Nodes that need database access receive the
+AsyncSession separately, via closures built in graph.py (see that module's
+docstring for why).
+"""
+from typing import Any, TypedDict
+
+
+class MerchantAgentState(TypedDict):
+    """
+    The Merchant Revenue Agent's working state, threaded through every node
+    in the graph (plan.md Section 13.1's exact field list, plus a couple of
+    plain-data fields nodes need to pass results forward).
+    """
+
+    cart_id: str
+    merchant_id: str
+    mandate_id: str
+
+    #: Snapshot of the cart at the start of the run (CartResponse.model_dump()).
+    original_cart: dict[str, Any]
+
+    #: Products not already in the cart, candidates for an upsell/cross-sell.
+    candidate_products: list[dict[str, Any]]
+
+    #: product_id -> available_quantity, for every candidate product.
+    inventory_results: dict[str, int]
+
+    #: Ranked candidates Gemini generated this round (product_id, quantity,
+    #: reason, estimated_value_add), highest value first.
+    ranked_candidates: list[dict[str, Any]]
+
+    #: The specific proposal currently being (or about to be) submitted.
+    proposal: dict[str, Any] | None
+
+    #: Every {proposal, allowed, reason_code} pair attempted so far.
+    proposal_history: list[dict[str, Any]]
+
+    last_reason_code: str | None
+    attempt_count: int
+
+    #: Final outcome (a ProposalStatus value) once the graph reaches END.
+    final_status: str
+    #: The allowed proposal, if final_status == PROPOSAL_ALLOWED; else None.
+    final_proposal: dict[str, Any] | None
