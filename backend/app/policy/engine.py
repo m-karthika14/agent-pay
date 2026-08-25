@@ -3,7 +3,7 @@ Purpose: Aggregate AgentPay's deterministic hard checks into one pass/block
 decision (plan.md Section 11.2).
 
 `run_hard_checks()` is ordinary, deterministic Python code. It never calls
-Gemini or any other LLM -- per plan.md Rule 1 ("hard constraints run first"),
+the LLM -- per plan.md Rule 1 ("hard constraints run first"),
 this is exactly the gate that must pass before any AI classification could
 ever be invoked in later phases.
 """

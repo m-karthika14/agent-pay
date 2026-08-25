@@ -14,7 +14,7 @@ seeing results). Most scenarios share one generic procedure
 declared overrides, call the real request_checkout(), and compare the
 raised ValidationError's reason_code against the declared expectation.
 A handful of scenarios have genuinely different mechanics (mandate
-consumption/replay, direct DB tampering, concurrent races, mocked-Gemini
+consumption/replay, direct DB tampering, concurrent races, mocked-LLM
 merchant upsells) and are named in SPECIAL_RUNNERS instead.
 
 Uses the same real, seeded UrbanNest catalog as eval/harness.py -- run

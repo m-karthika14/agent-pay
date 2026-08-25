@@ -34,10 +34,10 @@ TRANSACTION_BLOCKED_HARD_POLICY = "TRANSACTION_BLOCKED_HARD_POLICY"
 TRANSACTION_BLOCKED_POST_REVALIDATION = "TRANSACTION_BLOCKED_POST_REVALIDATION"
 
 # --- Intent Gate outcomes (Phase 7) ---
-# PROPOSAL_INTENT_VIOLATION and PROPOSAL_AMBIGUOUS_INTENT reflect Gemini's
+# PROPOSAL_INTENT_VIOLATION and PROPOSAL_AMBIGUOUS_INTENT reflect the LLM's
 # own classification (BLOCK / ESCALATE respectively). PROPOSAL_LOW_CONFIDENCE
 # and PROPOSAL_GATEWAY_ERROR are assigned by app.intent.gate's deterministic
-# wrapper -- never by Gemini itself -- so the reason-code vocabulary stays
+# wrapper -- never by the LLM itself -- so the reason-code vocabulary stays
 # fixed regardless of what free-text the model returns (plan.md Section 11.3).
 PROPOSAL_INTENT_VIOLATION = "PROPOSAL_INTENT_VIOLATION"
 PROPOSAL_AMBIGUOUS_INTENT = "PROPOSAL_AMBIGUOUS_INTENT"

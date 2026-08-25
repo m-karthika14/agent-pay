@@ -212,7 +212,7 @@ async def run_persona(
         await session.commit()
 
         # model_invoked is derived from the code path actually taken, not
-        # instrumentation: the Merchant Revenue Agent (and therefore Gemini)
+        # instrumentation: the Merchant Revenue Agent (and therefore the LLM)
         # is only ever reached after hard checks pass (plan.md Rule 2).
         try:
             checkout = await request_checkout(

@@ -8,11 +8,12 @@ functions only receive `state`, so per-request dependencies like a DB
 session are bound in via closure rather than smuggled through state (state
 must stay plain, checkpointable data, plan.md Section 13.1).
 
-Exactly one node (generate_candidates) calls Gemini. Every other node is
-ordinary deterministic Python -- consistent with plan.md Rule 6: the agent
-proposes using AI creativity for *what* to propose, but AgentPay's
-deterministic checks (via submit_proposal -> app.services.merchant_service)
-are what actually decide whether a proposal is allowed.
+Exactly one node (generate_candidates) calls the LLM (Groq). Every other
+node is ordinary deterministic Python -- consistent with plan.md Rule 6:
+the agent proposes using AI creativity for *what* to propose, but
+AgentPay's deterministic checks (via submit_proposal ->
+app.services.merchant_service) are what actually decide whether a
+proposal is allowed.
 """
 import logging
 
@@ -22,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.merchant import tools
 from app.agents.merchant.prompts import MERCHANT_AGENT_SYSTEM_PROMPT
 from app.agents.merchant.state import MerchantAgentState
-from app.ai.errors import GeminiError
-from app.ai.gemini_client import classify_with_schema
+from app.ai.errors import LLMError
+from app.ai.llm_client import classify_with_schema
 from app.core.constants import MAX_MERCHANT_PROPOSALS
 from app.schemas.proposal import MerchantProposal, ProposalStatus
 
@@ -32,26 +33,29 @@ logger = logging.getLogger("agentpay.merchant_agent")
 
 class _CandidateProposal(BaseModel):
     """
-    One Gemini-generated upsell/cross-sell idea (internal to this module).
+    One LLM-generated upsell/cross-sell idea (internal to this module).
 
-    quantity uses ge=1 rather than gt=0: Pydantic compiles gt=0 to JSON
-    Schema's "exclusiveMinimum" keyword, which Gemini's structured-output
-    schema validator rejects as an unsupported field (verified live -- it
-    raises "Extra inputs are not permitted" on the whole request). ge=1
-    is equivalent for an int field and compiles to "minimum", which Gemini
-    does support.
+    quantity uses ge=1 rather than gt=0 for historical reasons: under the
+    project's previous Gemini-backed client, Pydantic's gt=0 compiled to
+    JSON Schema's "exclusiveMinimum" keyword, which Gemini's provider-side
+    structured-output validator rejected outright (verified live). ge=1
+    was the fix (compiles to "minimum", which Gemini did support). The
+    current Groq-backed client (app.ai.llm_client) validates the response
+    with Pydantic client-side rather than relying on provider-side schema
+    enforcement, so this constraint is no longer strictly load-bearing, but
+    ge=1 remains the semantically correct constraint regardless.
     """
 
     product_id: str
     quantity: int = Field(ge=1)
     reason: str
     estimated_value_add_minor: int = Field(
-        description="Gemini's estimate of the added basket value, in minor currency units."
+        description="The LLM's estimate of the added basket value, in minor currency units."
     )
 
 
 class _CandidateProposalList(BaseModel):
-    """The structured shape requested from Gemini in generate_candidates()."""
+    """The structured shape requested from the LLM in generate_candidates()."""
 
     candidates: list[_CandidateProposal]
 
@@ -93,12 +97,12 @@ def make_check_inventory_node(session: AsyncSession):
 
 def make_generate_candidates_node():
     """
-    Build the generate_candidates node: the one Gemini call in this graph.
+    Build the generate_candidates node: the one LLM call in this graph.
 
-    Asks Gemini (structured output) for a ranked list of upsell/cross-sell
-    ideas given the cart and in-stock candidates. On any Gemini failure,
-    fails soft (empty candidate list) rather than raising -- a merchant
-    agent outage must never block a checkout that doesn't even involve it
+    Asks the LLM (structured output) for a ranked list of upsell/cross-sell
+    ideas given the cart and in-stock candidates. On any LLM failure, fails
+    soft (empty candidate list) rather than raising -- a merchant agent
+    outage must never block a checkout that doesn't even involve it
     (plan.md Rule 6: advisory only).
     """
 
@@ -121,8 +125,8 @@ def make_generate_candidates_node():
             result = await classify_with_schema(
                 prompt, _CandidateProposalList, system_instruction=MERCHANT_AGENT_SYSTEM_PROMPT
             )
-        except GeminiError:
-            logger.warning("Merchant agent: Gemini unavailable, proceeding with no proposal.", exc_info=True)
+        except LLMError:
+            logger.warning("Merchant agent: LLM unavailable, proceeding with no proposal.", exc_info=True)
             return {"ranked_candidates": []}
 
         return {"ranked_candidates": [c.model_dump(mode="json") for c in result.candidates]}
@@ -213,8 +217,8 @@ def make_read_block_reason_node():
 def make_revise_proposal_node():
     """
     Build the revise_proposal node: pick the next-best not-yet-tried
-    candidate, reusing the same ranked_candidates Gemini already generated
-    (no second Gemini call needed to "revise" -- the ranking already
+    candidate, reusing the same ranked_candidates the LLM already generated
+    (no second LLM call needed to "revise" -- the ranking already
     accounts for multiple options).
     """
 

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     Typed application configuration, sourced from environment variables / .env.
 
     Field names match the keys documented in .env.example. Secrets (Razorpay
-    key secret, webhook secret, Gemini API key, Ed25519 private key, DB
+    key secret, webhook secret, Groq API key, Ed25519 private key, DB
     password embedded in the URL) are only ever read here and passed down
     explicitly — they must never be logged or exposed to the frontend.
     """
@@ -47,9 +47,9 @@ class Settings(BaseSettings):
     razorpay_key_secret: str = Field(default="", alias="RAZORPAY_KEY_SECRET")
     razorpay_webhook_secret: str = Field(default="", alias="RAZORPAY_WEBHOOK_SECRET")
 
-    # Gemini (not used until Phase 6/7)
-    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="", alias="GEMINI_MODEL")
+    # LLM (Groq -- switched from Gemini after its quota was persistently exhausted, Phases 6-11)
+    groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
+    groq_model: str = Field(default="", alias="GROQ_MODEL")
 
     # MCP (not used until Phase 5)
     mcp_public_url: str = Field(default="http://localhost:8000/mcp", alias="MCP_PUBLIC_URL")

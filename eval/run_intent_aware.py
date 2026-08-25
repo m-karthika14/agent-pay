@@ -9,8 +9,8 @@ Run from the repo root or from backend/:
     uv run python eval/run_intent_aware.py
     (or, from backend/:  uv run python ../eval/run_intent_aware.py)
 
-Requires a configured, quota-available GEMINI_API_KEY -- both the Merchant
-Revenue Agent and the Intent Gate make real Gemini calls in this arm.
+Requires a configured, quota-available GROQ_API_KEY -- both the Merchant
+Revenue Agent and the Intent Gate make real LLM calls in this arm.
 
 Writes eval/reports/intent_aware.json.
 """

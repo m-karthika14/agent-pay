@@ -1,7 +1,7 @@
 """
 Purpose: Unit tests for the Merchant Revenue Agent (plan.md Section 13),
 exercising run_merchant_agent() end-to-end against a real database but with
-Gemini calls mocked -- no live GEMINI_API_KEY is required to run this suite,
+LLM calls mocked -- no live GROQ_API_KEY is required to run this suite,
 mirroring how Razorpay's create_order() is mocked in the Phase 4/5 test
 suites (tests/integration/test_webhooks.py, tests/integration/test_mcp_tools.py).
 
@@ -15,7 +15,7 @@ every assertion here is keyed off this test's own product ids, never off
 "the only candidate present."
 
 classify_with_schema() is patched where app.agents.merchant.nodes imported
-it (not at its definition in app.ai.gemini_client), per the standard
+it (not at its definition in app.ai.llm_client), per the standard
 unittest.mock rule of patching the name as looked up by the caller.
 """
 import uuid
@@ -24,7 +24,7 @@ from unittest.mock import AsyncMock, patch
 
 from app.agents.merchant.nodes import _CandidateProposal, _CandidateProposalList
 from app.agents.merchant.runner import run_merchant_agent
-from app.ai.errors import GeminiUnavailableError
+from app.ai.errors import LLMUnavailableError
 from app.carts.service import add_cart_item, create_cart
 from app.db.models.inventory import Inventory
 from app.db.models.merchant import Merchant
@@ -136,7 +136,7 @@ async def _build_fixture() -> dict:
 
 
 def _candidate_list(*entries: tuple[str, int]) -> _CandidateProposalList:
-    """Build a _CandidateProposalList as if Gemini had returned it, from (product_id, value_add) pairs."""
+    """Build a _CandidateProposalList as if the LLM had returned it, from (product_id, value_add) pairs."""
     return _CandidateProposalList(
         candidates=[
             _CandidateProposal(product_id=pid, quantity=1, reason="test reason", estimated_value_add_minor=value)
@@ -145,12 +145,12 @@ def _candidate_list(*entries: tuple[str, int]) -> _CandidateProposalList:
     )
 
 
-async def test_gemini_unavailable_falls_back_to_no_proposal() -> None:
-    """If Gemini can't be reached, the agent must fail soft to NO_PROPOSAL, never crash or block."""
+async def test_llm_unavailable_falls_back_to_no_proposal() -> None:
+    """If the LLM can't be reached, the agent must fail soft to NO_PROPOSAL, never crash or block."""
     fixture = await _build_fixture()
     factory = get_session_factory()
     async with factory() as session:
-        with patch(PATCH_TARGET, new=AsyncMock(side_effect=GeminiUnavailableError("no key"))):
+        with patch(PATCH_TARGET, new=AsyncMock(side_effect=LLMUnavailableError("no key"))):
             result = await run_merchant_agent(session, fixture["cart_id"], fixture["mandate_id"])
         await session.commit()
 

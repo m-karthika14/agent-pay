@@ -9,10 +9,10 @@ Run from the repo root or backend/:
     uv run python eval/run_adversarial_suite.py
 
 Writes eval/reports/adversarial_suite.json. Some cases invoke the real
-Merchant Revenue Agent and Intent Gate (mocked at the Gemini call site, so
-no live GEMINI_API_KEY is required for THOSE specific cases), but most
+Merchant Revenue Agent and Intent Gate (mocked at the LLM call site, so
+no live GROQ_API_KEY is required for THOSE specific cases), but most
 cases that pass hard checks will still transitively invoke the real
-Merchant Revenue Agent against live Gemini (same as eval/harness.py) -- see
+Merchant Revenue Agent against the live LLM (same as eval/harness.py) -- see
 eval/README.md.
 """
 import asyncio

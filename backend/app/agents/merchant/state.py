@@ -31,7 +31,7 @@ class MerchantAgentState(TypedDict):
     #: product_id -> available_quantity, for every candidate product.
     inventory_results: dict[str, int]
 
-    #: Ranked candidates Gemini generated this round (product_id, quantity,
+    #: Ranked candidates the LLM generated this round (product_id, quantity,
     #: reason, estimated_value_add), highest value first.
     ranked_candidates: list[dict[str, Any]]
 

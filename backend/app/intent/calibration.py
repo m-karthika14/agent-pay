@@ -119,8 +119,8 @@ async def run_calibration() -> list[dict]:
     Run every calibration case through the live Intent Gate and report
     predicted vs. expected outcomes, for manual threshold selection.
 
-    Requires a configured, quota-available GEMINI_API_KEY -- this makes real
-    Gemini calls and is meant to be run manually (like scripts/seed_database.py),
+    Requires a configured, quota-available GROQ_API_KEY -- this makes real
+    LLM calls and is meant to be run manually (like scripts/seed_database.py),
     not as part of the automated pytest suite.
 
     Returns:

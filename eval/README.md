@@ -31,10 +31,10 @@ Intent Gate is consulted differs.
    ```
    (run from the repo root, or from `backend/` as
    `uv run python ../scripts/seed_database.py`)
-3. For the Intent-aware arm: a configured, quota-available `GEMINI_API_KEY`
+3. For the Intent-aware arm: a configured, quota-available `GROQ_API_KEY`
    in `backend/.env` -- both the Merchant Revenue Agent and the Intent Gate
-   make real Gemini calls in that arm. The Cap-only arm still invokes the
-   Merchant Revenue Agent (which also calls Gemini to generate candidates),
+   make real LLM calls in that arm. The Cap-only arm still invokes the
+   Merchant Revenue Agent (which also calls the LLM to generate candidates),
    so it needs a working key too; only the Intent Gate call is skipped.
 
 ## Running

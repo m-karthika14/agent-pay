@@ -1,9 +1,9 @@
 """
 Purpose: Integration tests for Phase 8 -- the Merchant Revenue Agent and
 Intent Gate wired into checkout_service.request_checkout() (plan.md Section
-15 steps 9-13), exercised against a real database with both Gemini call
-sites mocked (app.agents.merchant.nodes.classify_with_schema and
-app.intent.gate.classify_with_schema) -- no live GEMINI_API_KEY required.
+15 steps 9-13), exercised against a real database with both LLM call sites
+mocked (app.agents.merchant.nodes.classify_with_schema and
+app.intent.gate.classify_with_schema) -- no live GROQ_API_KEY required.
 
 Mirrors tests/unit/test_merchant_agent.py's fixture pattern but goes one
 layer up: calls checkout_service.request_checkout() directly (not
@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from app.agents.merchant.nodes import _CandidateProposal, _CandidateProposalList
-from app.ai.errors import GeminiUnavailableError
+from app.ai.errors import LLMUnavailableError
 from app.carts.service import add_cart_item, create_cart
 from app.db.models.inventory import Inventory
 from app.db.models.merchant import Merchant
@@ -124,9 +124,9 @@ async def test_no_candidates_leaves_cart_untouched() -> None:
 async def test_cap_only_arm_auto_applies_proposal_without_consulting_intent_gate() -> None:
     """
     intent_gate_enabled=False (the Cap-only eval arm, plan.md Section 19.1)
-    applies a hard-check-passed proposal directly -- the Intent Gate's
-    Gemini call is never even patched here, so if the code tried to call it
-    unmocked, this test would either hit real Gemini or hang/error; it
+    applies a hard-check-passed proposal directly -- the Intent Gate's LLM
+    call is never even patched here, so if the code tried to call it
+    unmocked, this test would either hit the real LLM or hang/error; it
     doesn't, proving the gate is genuinely skipped, not just given a
     favorable mock.
     """
@@ -207,12 +207,12 @@ async def test_low_confidence_intent_decision_escalates_and_is_non_terminal() ->
     assert result.cart.subtotal_minor == fixture["original_subtotal"]
 
 
-async def test_gemini_unavailable_for_merchant_agent_still_completes_checkout() -> None:
-    """If Gemini is unreachable for the merchant agent, checkout still completes with the original cart (fail soft)."""
+async def test_llm_unavailable_for_merchant_agent_still_completes_checkout() -> None:
+    """If the LLM is unreachable for the merchant agent, checkout still completes with the original cart (fail soft)."""
     fixture = await _build_fixture()
     factory = get_session_factory()
     async with factory() as session:
-        with patch(MERCHANT_PATCH_TARGET, new=AsyncMock(side_effect=GeminiUnavailableError("no key"))):
+        with patch(MERCHANT_PATCH_TARGET, new=AsyncMock(side_effect=LLMUnavailableError("no key"))):
             result = await request_checkout(session, fixture["cart_id"], fixture["mandate_id"])
         await session.commit()
 

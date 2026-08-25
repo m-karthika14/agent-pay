@@ -4,7 +4,7 @@ Section 10.4 in final.md's second copy).
 
 Per plan.md Section 13.2: "The exact prompt must be committed to Git and
 included in the evaluation artifact." This module IS that committed artifact
--- it is imported by the agent's Gemini calls and can also be pulled
+-- it is imported by the agent's LLM calls and can also be pulled
 directly into evaluation reports/the technical presentation slide.
 
 Per plan.md Section 5.5, every AI prompt's header must explain:
@@ -15,8 +15,8 @@ Per plan.md Section 5.5, every AI prompt's header must explain:
 - what it may never do: authorize payment, modify the mandate, call
   Razorpay, bypass AgentPay, or assume permission it wasn't given.
 - its output format: a single structured proposal (product_id, quantity,
-  reason) per turn -- enforced by Gemini structured output, not by asking
-  nicely in prose.
+  reason) per turn -- enforced by the LLM's structured output, not by
+  asking nicely in prose.
 """
 
 MERCHANT_AGENT_SYSTEM_PROMPT = """\

@@ -9,7 +9,7 @@ submit_proposal() calls app.services.merchant_service.evaluate_proposal(),
 AgentPay's proposal pathway -- it never mutates the cart directly
 (plan.md Rule 6: the merchant agent is advisory only).
 
-These are plain async functions (not Gemini/LangChain "function calling"
+These are plain async functions (not LLM/LangChain "function calling"
 tools) because the graph's flow is a fixed sequence of nodes, not a
 dynamic tool-selection loop -- see plan.md Section 13.5's graph structure.
 """

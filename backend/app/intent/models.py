@@ -1,7 +1,7 @@
 """
 Purpose: Pydantic schemas for the Intent Gate (plan.md Section 14).
 
-The Intent Gate is a single Gemini structured-classification call, not an
+The Intent Gate is a single LLM structured-classification call, not an
 agent (plan.md Section 0.5 / Section 14.1): it has no tools, no loop, and no
 state beyond one request/response. These are its strict input/output shapes.
 """
@@ -45,7 +45,7 @@ class IntentDecision(BaseModel):
     decision=ALLOW only ever permits what hard checks already allowed
     (plan.md Rule 1: the gate can subtract permission, never add it).
     reason_code is always set on BLOCK/ESCALATE, and is assigned by
-    app.intent.gate -- never returned directly by Gemini (see
+    app.intent.gate -- never returned directly by the LLM (see
     app.policy.reason_codes' Phase 7 section for why).
     """
 
@@ -57,7 +57,7 @@ class IntentDecision(BaseModel):
 
 class _IntentClassification(BaseModel):
     """
-    The narrow shape actually requested from Gemini (internal to this
+    The narrow shape actually requested from the LLM (internal to this
     module). Deliberately excludes reason_code -- see IntentDecision's
     docstring for why that's assigned by the deterministic wrapper instead.
     """
