@@ -142,6 +142,34 @@ async def get_cart(session: AsyncSession, cart_id: uuid.UUID) -> CartResponse:
     return await to_cart_response(session, cart)
 
 
+async def get_cart_by_mandate(session: AsyncSession, mandate_row_id: uuid.UUID) -> CartResponse | None:
+    """
+    Fetch the cart currently linked to a mandate, if any (plan.md Section
+    10.4-adjacent, added Phase 10: Cart.mandate_id is set once
+    checkout_service.request_checkout() freezes a cart under this mandate).
+
+    Returns None (rather than raising) before any checkout has been
+    requested yet -- a mandate legitimately has no linked cart between its
+    creation and a buyer agent's first request_checkout() call, so this is
+    a normal state for a live "watch this purchase happen" panel to poll,
+    not an error.
+
+    Args:
+        session: Active AsyncSession.
+        mandate_row_id: The mandate's internal UUID (Mandate.id, not its
+            business-facing mandate_id string).
+
+    Returns:
+        The linked cart, or None if no cart has been frozen under this
+        mandate yet.
+    """
+    result = await session.execute(select(Cart).where(Cart.mandate_id == mandate_row_id))
+    cart = result.scalar_one_or_none()
+    if cart is None:
+        return None
+    return await to_cart_response(session, cart)
+
+
 async def _add_or_merge_item(session: AsyncSession, cart: Cart, product: Product, quantity: int) -> None:
     """
     Insert a new line item for `product`/`quantity`, or merge into an

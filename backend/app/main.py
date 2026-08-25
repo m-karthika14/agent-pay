@@ -20,7 +20,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import audit, carts, checkout, console, health, products, transactions, webhooks
+from app.api.routes import (
+    audit,
+    carts,
+    checkout,
+    console,
+    health,
+    mandates,
+    products,
+    transactions,
+    users,
+    webhooks,
+)
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.mcp.server import get_mcp_asgi_app, mcp
@@ -69,7 +80,9 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(products.router)
+app.include_router(users.router)
 app.include_router(carts.router)
+app.include_router(mandates.router)
 app.include_router(checkout.router)
 app.include_router(transactions.router)
 app.include_router(audit.router)

@@ -12,15 +12,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.carts import service as carts_service
 from app.db.session import get_db_session
+from app.mandates.service import get_mandate_by_business_id
 from app.schemas.cart import (
     AddCartItemRequest,
     CartResponse,
     CreateCartRequest,
     UpdateCartItemRequest,
 )
-from app.schemas.common import ApiSuccessResponse
+from app.schemas.common import ApiSuccessResponse, NotFoundError
 
 router = APIRouter(prefix="/api/carts", tags=["carts"])
+
+
+@router.get("/by-mandate/{mandate_id}", response_model=ApiSuccessResponse[CartResponse | None])
+async def get_cart_by_mandate(
+    mandate_id: str, session: AsyncSession = Depends(get_db_session)
+) -> ApiSuccessResponse[CartResponse | None]:
+    """
+    Fetch the cart currently linked to a mandate (by its business-facing
+    mandate_id), or null if no cart has been frozen under it yet. Polled by
+    the live "AI Activity" panel to show cart contents once checkout starts.
+    """
+    mandate_row = await get_mandate_by_business_id(session, mandate_id)
+    if mandate_row is None:
+        raise NotFoundError("MANDATE_NOT_FOUND", f"No mandate with id '{mandate_id}'.")
+    cart = await carts_service.get_cart_by_mandate(session, mandate_row.id)
+    return ApiSuccessResponse(data=cart)
 
 
 @router.post("", response_model=ApiSuccessResponse[CartResponse])

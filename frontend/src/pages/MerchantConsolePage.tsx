@@ -56,7 +56,7 @@ export function MerchantConsolePage() {
               {summary.data.recent_transactions.map((row) => (
                 <li key={row.transaction_id}>
                   <Link
-                    to={`/transactions/${row.transaction_id}`}
+                    to={`/console/transactions/${row.transaction_id}`}
                     className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
                   >
                     <div>

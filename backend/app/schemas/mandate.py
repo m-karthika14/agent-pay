@@ -94,3 +94,48 @@ class MandateVerificationResult(BaseModel):
     valid: bool
     reason_code: str | None = None
     reason: str | None = None
+
+
+class CreateMandateRequest(BaseModel):
+    """
+    A buyer's stated purchase intent/constraints, submitted via the
+    storefront (`POST /api/mandates`, plan.md Section 18) to authorize a
+    purchase before any buyer agent (Claude, via MCP) shops on their
+    behalf. AgentPay -- never the buyer or Claude -- generates the business
+    `mandate_id` and signs the result (plan.md Rule 3: intent is signed
+    into the mandate at authorization time, before any agent acts on it).
+
+    user_email identifies (or, if unseen, creates) the authorizing user --
+    the demo storefront has no real authentication, so email is the
+    lightweight identity key, mirroring scripts/seed_database.py's demo user.
+    """
+
+    user_email: str
+    user_name: str = Field(default="Storefront Buyer")
+    merchant_id: str = Field(description="Internal UUID of the merchant this mandate authorizes.")
+    currency: str = Field(default="INR", description='ISO 4217 currency code, e.g. "INR"')
+    max_amount_minor: int = Field(gt=0, description="Authorized spending cap, in minor currency units.")
+    allowed_categories: list[str]
+    allow_addons: bool = False
+    delivery_requirement: str = "under_3_days"
+    single_use: bool = True
+    expires_in_hours: int = Field(default=24, gt=0)
+    product_type: str = Field(description='e.g. "wireless earbuds"')
+    notes: str | None = Field(default=None, description='e.g. "no unnecessary accessories"')
+
+
+class MandateResponse(BaseModel):
+    """A mandate's public, decoded content -- for display, and for handing its mandate_id to Claude."""
+
+    mandate_id: str
+    merchant_id: str
+    currency: str
+    max_amount_minor: int
+    allowed_categories: list[str]
+    allow_addons: bool
+    delivery_requirement: str
+    single_use: bool
+    expires_at: datetime
+    product_type: str
+    notes: str | None
+    status: str

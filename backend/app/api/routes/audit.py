@@ -17,6 +17,19 @@ from app.services import audit_service
 router = APIRouter(prefix="/api/audit", tags=["audit"])
 
 
+@router.get("/by-mandate/{mandate_id}", response_model=ApiSuccessResponse[list[AuditEventRecord]])
+async def get_mandate_audit_events(
+    mandate_id: str, session: AsyncSession = Depends(get_db_session)
+) -> ApiSuccessResponse[list[AuditEventRecord]]:
+    """
+    Fetch a mandate's own audit events, oldest first -- works from the
+    moment the mandate is created, before any cart is frozen or payment
+    attempted under it. Polled by the live "AI Activity" panel.
+    """
+    events = await audit_service.get_events_for_mandate(session, mandate_id)
+    return ApiSuccessResponse(data=events)
+
+
 @router.get("/{transaction_id}", response_model=ApiSuccessResponse[list[AuditEventRecord]])
 async def get_transaction_audit_events(
     transaction_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)

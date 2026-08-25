@@ -14,7 +14,7 @@ events are always recorded) rather than duplicating their logic.
 import base64
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,8 +22,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit.service import append_event
 from app.core.config import get_settings
 from app.db.models.mandate import Mandate
+from app.db.models.merchant import Merchant
+from app.db.models.user import User
 from app.schemas.audit import AuditEventInput
-from app.schemas.mandate import MandatePayload, MandateStatus, SignedMandate
+from app.schemas.common import NotFoundError
+from app.schemas.mandate import (
+    CreateMandateRequest,
+    MandateIntent,
+    MandatePayload,
+    MandateResponse,
+    MandateStatus,
+    SignedMandate,
+)
 from app.security.canonical import canonicalize_mandate
 from app.security.signing import decode_private_key, sign_bytes
 
@@ -122,3 +132,96 @@ async def consume_mandate(session: AsyncSession, row: Mandate) -> Mandate:
         ),
     )
     return row
+
+
+async def get_or_create_user(session: AsyncSession, email: str, name: str) -> User:
+    """
+    Look up a user by email, creating one if none exists yet.
+
+    The demo storefront has no real authentication (plan.md Section 18's
+    mandate route never specified one), so email is the lightweight
+    identity key -- mirrors scripts/seed_database.py's idempotent demo
+    user creation.
+
+    Args:
+        session: Active AsyncSession.
+        email: The buyer's email, used as the natural key.
+        name: Display name to use if a new user row is created.
+
+    Returns:
+        The existing or newly-created User row.
+    """
+    result = await session.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is not None:
+        return user
+    user = User(email=email, name=name)
+    session.add(user)
+    await session.flush()
+    return user
+
+
+async def create_mandate_from_request(session: AsyncSession, request: CreateMandateRequest) -> MandateResponse:
+    """
+    Create, sign, and persist a mandate from a buyer's stated intent
+    (plan.md Section 18 `POST /api/mandates`).
+
+    AgentPay generates the business-facing mandate_id itself -- never
+    accepted from the caller -- so a buyer (or a compromised client) can
+    never collide with or spoof another mandate's id.
+
+    Args:
+        session: Active AsyncSession.
+        request: The buyer's stated constraints/intent.
+
+    Returns:
+        MandateResponse describing the newly-created mandate, including its
+        mandate_id -- the value the buyer hands to Claude to authorize a
+        purchase through MCP.
+
+    Raises:
+        NotFoundError: If no merchant exists with the given merchant_id.
+        ValueError: If ED25519_PRIVATE_KEY_B64 is not configured (propagated
+            from create_mandate()).
+    """
+    merchant_id = uuid.UUID(request.merchant_id)
+    merchant = await session.get(Merchant, merchant_id)
+    if merchant is None:
+        raise NotFoundError("MERCHANT_NOT_FOUND", f"No merchant with id '{request.merchant_id}'.")
+
+    user = await get_or_create_user(session, request.user_email, request.user_name)
+
+    payload = MandatePayload(
+        mandate_id=f"M-{uuid.uuid4().hex[:8]}",
+        merchant_id=request.merchant_id,
+        currency=request.currency,
+        max_amount=request.max_amount_minor,
+        allowed_categories=request.allowed_categories,
+        allow_addons=request.allow_addons,
+        delivery_requirement=request.delivery_requirement,
+        single_use=request.single_use,
+        expires_at=datetime.now(UTC) + timedelta(hours=request.expires_in_hours),
+        intent=MandateIntent(product_type=request.product_type, notes=request.notes),
+    )
+    row = await create_mandate(session, payload, user.id, merchant_id)
+    return to_mandate_response(row)
+
+
+def to_mandate_response(row: Mandate) -> MandateResponse:
+    """Decode a persisted Mandate row's signed_payload into the public MandateResponse shape."""
+    signed_mandate = to_signed_mandate(row)
+    payload = signed_mandate.payload
+    return MandateResponse(
+        mandate_id=payload.mandate_id,
+        merchant_id=payload.merchant_id,
+        currency=payload.currency,
+        max_amount_minor=payload.max_amount,
+        allowed_categories=payload.allowed_categories,
+        allow_addons=payload.allow_addons,
+        delivery_requirement=payload.delivery_requirement,
+        single_use=payload.single_use,
+        expires_at=payload.expires_at,
+        product_type=payload.intent.product_type,
+        notes=payload.intent.notes,
+        status=row.status.value,
+    )

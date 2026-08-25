@@ -12,7 +12,7 @@ export function AuditPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to={`/transactions/${transactionId}`} className="text-sm text-slate-500 hover:text-slate-700">
+        <Link to={`/console/transactions/${transactionId}`} className="text-sm text-slate-500 hover:text-slate-700">
           ← Back to transaction
         </Link>
         <h1 className="mt-1 text-lg font-semibold text-slate-900">Audit Chain</h1>

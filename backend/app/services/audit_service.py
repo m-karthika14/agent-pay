@@ -16,6 +16,7 @@ from app.audit.verifier import verify_chain
 from app.db.models.audit_event import AuditEvent
 from app.db.models.order import Order
 from app.db.models.transaction import Transaction
+from app.mandates.service import get_mandate_by_business_id
 from app.schemas.audit import AuditEventRecord, ChainVerificationResult
 from app.schemas.common import NotFoundError
 
@@ -102,6 +103,37 @@ async def verify_full_chain(session: AsyncSession, transaction_id: uuid.UUID) ->
     result = await session.execute(select(AuditEvent).order_by(AuditEvent.sequence))
     events = list(result.scalars().all())
     return verify_chain(events)
+
+
+async def get_events_for_mandate(session: AsyncSession, mandate_id: str) -> list[AuditEventRecord]:
+    """
+    Fetch every audit event recorded against one mandate, in chain order,
+    identified by its business-facing mandate_id (e.g. "M-001").
+
+    Unlike get_events_for_transaction (which needs a Transaction/Order row
+    to already exist), this works from the moment a mandate is created --
+    before any cart is even frozen under it -- so it's what a live
+    "watch this purchase happen" activity panel polls while a buyer agent
+    is still shopping, not just after a payment attempt exists.
+
+    Args:
+        session: Active AsyncSession.
+        mandate_id: Business-facing mandate_id.
+
+    Returns:
+        AuditEventRecord list, oldest first.
+
+    Raises:
+        NotFoundError: If no mandate exists with that id.
+    """
+    mandate_row = await get_mandate_by_business_id(session, mandate_id)
+    if mandate_row is None:
+        raise NotFoundError("MANDATE_NOT_FOUND", f"No mandate with id '{mandate_id}'.")
+
+    result = await session.execute(
+        select(AuditEvent).where(AuditEvent.mandate_id == mandate_row.id).order_by(AuditEvent.sequence)
+    )
+    return [_to_record(event) for event in result.scalars().all()]
 
 
 async def get_recent_events(session: AsyncSession, limit: int) -> list[AuditEventRecord]:

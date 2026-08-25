@@ -10,6 +10,16 @@ export function getTransactionAuditEvents(transactionId: string): Promise<AuditE
 }
 
 /**
+ * Fetch a mandate's audit events, oldest first -- works from mandate
+ * creation onward, unlike getTransactionAuditEvents which needs an Order to
+ * already exist. Polled by the "AI Activity" panel to show progress before
+ * a transaction/order exists yet.
+ */
+export function getMandateAuditEvents(mandateId: string): Promise<AuditEventRecord[]> {
+  return apiGet<AuditEventRecord[]>(`/api/audit/by-mandate/${mandateId}`)
+}
+
+/**
  * Verify AgentPay's entire hash-chained audit log. The chain is global
  * (plan.md Section 23.2), so this checks the whole ledger, not just the
  * events belonging to `transactionId` -- see the backend route's docstring.

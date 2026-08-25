@@ -22,7 +22,7 @@ export function TransactionPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/" className="text-sm text-slate-500 hover:text-slate-700">
+        <Link to="/console" className="text-sm text-slate-500 hover:text-slate-700">
           ← Back to console
         </Link>
         <h1 className="mt-1 text-lg font-semibold text-slate-900">Transaction {data.transaction.transaction_id}</h1>
@@ -61,7 +61,7 @@ export function TransactionPage() {
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800">Decision Trace</h3>
           <Link
-            to={`/transactions/${data.transaction.transaction_id}/audit`}
+            to={`/console/transactions/${data.transaction.transaction_id}/audit`}
             className="text-sm text-slate-500 hover:text-slate-700"
           >
             View audit chain →
