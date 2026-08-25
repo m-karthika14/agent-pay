@@ -142,6 +142,53 @@ async def get_cart(session: AsyncSession, cart_id: uuid.UUID) -> CartResponse:
     return await to_cart_response(session, cart)
 
 
+async def _add_or_merge_item(session: AsyncSession, cart: Cart, product: Product, quantity: int) -> None:
+    """
+    Insert a new line item for `product`/`quantity`, or merge into an
+    existing line for the same product, then recalculate cart.subtotal_minor.
+
+    Shared by add_cart_item() (buyer-facing, OPEN carts only) and
+    merge_item_into_cart() (system-facing, applied to an already-FROZEN cart
+    by app.services.checkout_service after Intent Gate approval) -- the
+    merge/recalculate mechanics are identical either way; only the caller
+    decides whether cart.status permits the mutation (plan.md rule: reuse
+    existing code instead of duplicating logic).
+
+    Raises:
+        ValidationError: If `quantity` would exceed available inventory.
+    """
+    existing_result = await session.execute(
+        select(CartItem).where(CartItem.cart_id == cart.id, CartItem.product_id == product.id)
+    )
+    existing_item = existing_result.scalar_one_or_none()
+    requested_total_quantity = quantity + (existing_item.quantity if existing_item else 0)
+
+    inventory_result = await session.execute(select(Inventory).where(Inventory.product_id == product.id))
+    inventory = inventory_result.scalar_one_or_none()
+    available = (inventory.quantity - inventory.reserved_quantity) if inventory else 0
+    if requested_total_quantity > available:
+        raise ValidationError(
+            "INSUFFICIENT_INVENTORY",
+            f"Only {available} unit(s) of '{product.name}' are available.",
+        )
+
+    if existing_item is not None:
+        existing_item.quantity = requested_total_quantity
+        existing_item.line_total_minor = existing_item.quantity * existing_item.unit_price_minor
+    else:
+        session.add(
+            CartItem(
+                cart_id=cart.id,
+                product_id=product.id,
+                quantity=quantity,
+                unit_price_minor=product.price_minor,
+                line_total_minor=quantity * product.price_minor,
+            )
+        )
+    await session.flush()
+    await _recalculate_subtotal(session, cart)
+
+
 async def add_cart_item(
     session: AsyncSession, cart_id: uuid.UUID, product_id: uuid.UUID, quantity: int
 ) -> CartResponse:
@@ -174,39 +221,36 @@ async def add_cart_item(
     if product is None or not product.is_active:
         raise NotFoundError("PRODUCT_NOT_FOUND", f"No active product with id '{product_id}'.")
 
-    existing_result = await session.execute(
-        select(CartItem).where(CartItem.cart_id == cart_id, CartItem.product_id == product_id)
-    )
-    existing_item = existing_result.scalar_one_or_none()
-    requested_total_quantity = quantity + (existing_item.quantity if existing_item else 0)
-
-    inventory_result = await session.execute(
-        select(Inventory).where(Inventory.product_id == product_id)
-    )
-    inventory = inventory_result.scalar_one_or_none()
-    available = (inventory.quantity - inventory.reserved_quantity) if inventory else 0
-    if requested_total_quantity > available:
-        raise ValidationError(
-            "INSUFFICIENT_INVENTORY",
-            f"Only {available} unit(s) of '{product.name}' are available.",
-        )
-
-    if existing_item is not None:
-        existing_item.quantity = requested_total_quantity
-        existing_item.line_total_minor = existing_item.quantity * existing_item.unit_price_minor
-    else:
-        session.add(
-            CartItem(
-                cart_id=cart_id,
-                product_id=product_id,
-                quantity=quantity,
-                unit_price_minor=product.price_minor,
-                line_total_minor=quantity * product.price_minor,
-            )
-        )
-    await session.flush()
-    await _recalculate_subtotal(session, cart)
+    await _add_or_merge_item(session, cart, product, quantity)
     return await to_cart_response(session, cart)
+
+
+async def merge_item_into_cart(session: AsyncSession, cart: Cart, product: Product, quantity: int) -> None:
+    """
+    Apply an Intent-Gate-approved merchant proposal to an already-FROZEN
+    cart (plan.md Section 15 step 12).
+
+    This deliberately bypasses add_cart_item()'s OPEN-status guard: the
+    caller (app.services.checkout_service) is AgentPay's own deterministic
+    backend code applying a change AgentPay itself decided to allow, not a
+    buyer mutating their cart directly (plan.md Rule 6 -- the merchant agent
+    can never execute this itself; only AgentPay can, and only after both
+    the deterministic proposal pathway and the Intent Gate approved it).
+
+    Args:
+        session: Active AsyncSession.
+        cart: The FROZEN cart to modify. The caller must re-freeze it (via
+            app.carts.freeze.freeze_cart) immediately after this returns --
+            this function does not touch frozen_hash/frozen_at itself, so
+            the cart is briefly in an inconsistent (FROZEN but unhashed-for-
+            its-new-contents) state until the caller re-freezes it.
+        product: The proposed product to add.
+        quantity: How many units to add.
+
+    Raises:
+        ValidationError: If `quantity` would exceed available inventory.
+    """
+    await _add_or_merge_item(session, cart, product, quantity)
 
 
 async def update_cart_item_quantity(
