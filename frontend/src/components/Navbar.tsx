@@ -16,7 +16,7 @@ const TAB_CLASS = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'
   }`
 
-/** Top navigation bar: the UrbanNest storefront's core shopping tabs, plus the live AI Activity panel and Merchant Console. */
+/** Top navigation bar: the UrbanNest storefront's core shopping tabs + buyer identity in one card, plus the live AI Activity panel and Merchant Console at the far end. */
 export function Navbar() {
   const { itemCount } = useCart()
   const { userId, name, logout } = useBuyer()
@@ -28,12 +28,32 @@ export function Navbar() {
           UrbanNest
         </NavLink>
 
-        <nav className="flex items-center gap-1 rounded-full bg-linear-to-r from-indigo-600 to-indigo-500 p-1 shadow-inner">
+        <nav className="flex items-center gap-1 rounded-full bg-linear-to-r from-indigo-600 to-indigo-500 py-1 pr-1.5 pl-1 shadow-inner">
           {SHOP_TABS.map((tab) => (
             <NavLink key={tab.to} to={tab.to} end={tab.end} className={TAB_CLASS}>
               {tab.label === 'Cart' && itemCount > 0 ? `Cart (${itemCount})` : tab.label}
             </NavLink>
           ))}
+          {userId && (
+            <>
+              <span className="mx-1 h-5 w-px bg-white/25" aria-hidden="true" />
+              <span className="flex h-7 shrink-0 items-center rounded-full bg-white/20 px-3 text-sm font-medium whitespace-nowrap text-white">
+                {name}
+              </span>
+              <button
+                type="button"
+                onClick={logout}
+                title="Log out"
+                aria-label="Log out"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-indigo-100 transition hover:bg-white/15 hover:text-white"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                  <path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M10 12h11M17 8l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </>
+          )}
         </nav>
 
         <nav className="flex items-center gap-5">
@@ -43,14 +63,6 @@ export function Navbar() {
           <NavLink to="/console" className={UTILITY_LINK_CLASS}>
             Merchant Console
           </NavLink>
-          {userId && (
-            <>
-              <span className="text-sm text-slate-600">Hello, {name} 👋</span>
-              <button type="button" onClick={logout} className="text-sm font-medium text-slate-500 hover:text-slate-700">
-                Log out
-              </button>
-            </>
-          )}
         </nav>
       </div>
     </header>
