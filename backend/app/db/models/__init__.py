@@ -6,6 +6,7 @@ without it, tables whose model files are never otherwise imported would be
 silently missing from the generated schema.
 """
 from app.db.models.audit_event import AuditEvent
+from app.db.models.authorization_request import AuthorizationRequest
 from app.db.models.cart import Cart
 from app.db.models.cart_item import CartItem
 from app.db.models.inventory import Inventory
@@ -18,6 +19,7 @@ from app.db.models.user import User
 
 __all__ = [
     "AuditEvent",
+    "AuthorizationRequest",
     "Cart",
     "CartItem",
     "Inventory",

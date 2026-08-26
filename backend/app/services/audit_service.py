@@ -34,6 +34,7 @@ def _to_record(event: AuditEvent) -> AuditEventRecord:
         reason_code=event.reason_code,
         mandate_id=str(event.mandate_id) if event.mandate_id else None,
         order_id=str(event.order_id) if event.order_id else None,
+        user_id=str(event.user_id) if event.user_id else None,
         created_at=event.created_at,
     )
 
@@ -133,6 +134,32 @@ async def get_events_for_mandate(session: AsyncSession, mandate_id: str) -> list
 
     result = await session.execute(
         select(AuditEvent).where(AuditEvent.mandate_id == mandate_row.id).order_by(AuditEvent.sequence)
+    )
+    return [_to_record(event) for event in result.scalars().all()]
+
+
+async def get_events_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[AuditEventRecord]:
+    """
+    Fetch every audit event recorded directly against one buyer, in chain
+    order -- includes events that predate any mandate (CART_CREATED,
+    AUTHORIZATION_REQUESTED/APPROVED/REJECTED), which get_events_for_mandate
+    can never see since they carry no mandate_id.
+
+    Note this does NOT include a mandate's own later events (HARD_POLICY_
+    PASSED, CART_FROZEN, etc.) -- those still only carry mandate_id, not
+    user_id, so watching a purchase all the way through still means pairing
+    this with get_events_for_mandate once a mandate exists.
+
+    Args:
+        session: Active AsyncSession.
+        user_id: The buyer's internal User.id.
+
+    Returns:
+        AuditEventRecord list, oldest first. Empty if this user has no
+        pre-mandate events yet, not an error.
+    """
+    result = await session.execute(
+        select(AuditEvent).where(AuditEvent.user_id == user_id).order_by(AuditEvent.sequence)
     )
     return [_to_record(event) for event in result.scalars().all()]
 

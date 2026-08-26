@@ -142,7 +142,7 @@ def _json_many(text: str) -> list[dict]:
     return json.loads("[" + text.replace("}\n{", "},{") + "]")
 
 
-async def test_list_tools_exposes_all_six_commerce_tools() -> None:
+async def test_list_tools_exposes_all_eight_commerce_tools() -> None:
     async with _mcp_client_session() as session:
         tools = await session.list_tools()
 
@@ -154,6 +154,8 @@ async def test_list_tools_exposes_all_six_commerce_tools() -> None:
         "add_to_cart",
         "request_checkout",
         "complete_purchase",
+        "request_authorization",
+        "check_authorization_status",
     }
 
 

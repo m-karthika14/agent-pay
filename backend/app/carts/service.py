@@ -17,6 +17,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit.service import append_event
 from app.core.constants import CART_STATUS_OPEN
 from app.db.models.cart import Cart
 from app.db.models.cart_item import CartItem
@@ -25,6 +26,7 @@ from app.db.models.mandate import Mandate
 from app.db.models.merchant import Merchant
 from app.db.models.product import Product
 from app.db.models.user import User
+from app.schemas.audit import AuditEventInput
 from app.schemas.cart import CartItemResponse, CartResponse
 from app.schemas.common import NotFoundError, ValidationError
 
@@ -131,6 +133,16 @@ async def create_cart(
     )
     session.add(cart)
     await session.flush()
+
+    await append_event(
+        session,
+        AuditEventInput(
+            event_type="CART_CREATED",
+            actor_type="SYSTEM",
+            payload={"cart_id": str(cart.id), "merchant_id": str(merchant_id)},
+            user_id=str(user_id),
+        ),
+    )
     return await to_cart_response(session, cart)
 
 

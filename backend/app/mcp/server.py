@@ -27,10 +27,15 @@ mcp = MCPServer(
         "checkout) to external AI buyer agents -- call search_products() "
         "with no merchant argument to search every merchant at once (e.g. "
         "to compare prices across merchants), or pass a specific merchant "
-        "slug once you know which one to shop. All financial authorization "
+        "slug once you know which one to shop. If you don't already have a "
+        "mandate_id, create a cart, add what you intend to buy, then call "
+        "request_authorization() and poll check_authorization_status() -- "
+        "a human must Approve in the AgentPay app before you get a real "
+        "mandate_id; never assume approval. All financial authorization "
         "is enforced deterministically server-side -- tool calls that "
         "violate a signed mandate or fail a hard check return an error; no "
-        "tool call can bypass AgentPay's policy engine."
+        "tool call can bypass AgentPay's policy engine, and you can never "
+        "sign a mandate yourself."
     ),
 )
 
@@ -83,7 +88,7 @@ def _mcp_transport_security() -> TransportSecuritySettings:
 
 def get_mcp_asgi_app() -> Starlette:
     """
-    Register all six commerce tools onto `mcp` and return its Streamable
+    Register all eight commerce tools onto `mcp` and return its Streamable
     HTTP ASGI app, ready to mount.
 
     Returns:

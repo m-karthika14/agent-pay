@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 from app.api.routes import (
     audit,
     auth,
+    authorization_requests,
     carts,
     checkout,
     console,
@@ -88,6 +89,7 @@ app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(carts.router)
 app.include_router(mandates.router)
+app.include_router(authorization_requests.router)
 app.include_router(checkout.router)
 app.include_router(orders.router)
 app.include_router(transactions.router)

@@ -19,7 +19,8 @@ import type { CartResponse } from '../types/cart'
 import { useBuyer } from './BuyerContext'
 import { merchantSlugFromPath } from '../lib/merchantRoute'
 
-function cartIdStorageKey(merchantSlug: string): string {
+/** The localStorage key CartContext reads/writes a merchant's cart_id under -- exported so GlobalAuthorizationPopup's "Review" deep link can prime the exact same key before navigating. */
+export function cartIdStorageKey(merchantSlug: string): string {
   return `agentpay_cart_id:${merchantSlug}`
 }
 

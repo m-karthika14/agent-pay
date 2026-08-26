@@ -7,7 +7,7 @@ this module is pure data shape (plan.md Section 23).
 """
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AuditEventInput(BaseModel):
@@ -27,6 +27,10 @@ class AuditEventInput(BaseModel):
     reason_code: str | None = None
     mandate_id: str | None = None
     order_id: str | None = None
+    user_id: str | None = Field(
+        default=None,
+        description="Set on events that predate any mandate (CART_CREATED, AUTHORIZATION_*), so they stay queryable per-buyer.",
+    )
 
 
 class AuditEventRecord(BaseModel):
@@ -53,6 +57,7 @@ class AuditEventRecord(BaseModel):
     reason_code: str | None = None
     mandate_id: str | None = None
     order_id: str | None = None
+    user_id: str | None = None
     created_at: datetime | None = None
 
 

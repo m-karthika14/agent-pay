@@ -146,9 +146,18 @@ async def test_audit_events_for_transaction_carry_hash_chain_fields(razorpay_tes
     for event in events:
         assert "event_hash" in event
         assert "reason_code" in event
-    # Chain order: each event's previous_hash equals the prior event's event_hash.
-    for earlier, later in zip(events, events[1:]):
-        assert later["previous_hash"] == earlier["event_hash"]
+    # Oldest-first order (get_events_for_transaction's documented contract).
+    # NOT asserted here: that each event's previous_hash equals the prior
+    # *filtered* event's event_hash -- the hash chain is global (every event
+    # links to whichever event preceded it system-wide, per
+    # audit_service.verify_full_chain's docstring), so a mandate-less event
+    # recorded in between two of this mandate's own events (e.g.
+    # CART_CREATED, appended when the cart under test was created after its
+    # mandate) legitimately breaks that stronger property without indicating
+    # any real tamper. Full chain integrity is verified separately by
+    # test_verify_audit_chain_reports_valid below.
+    timestamps = [event["created_at"] for event in events]
+    assert timestamps == sorted(timestamps)
 
 
 async def test_verify_audit_chain_reports_valid(razorpay_test_secrets) -> None:

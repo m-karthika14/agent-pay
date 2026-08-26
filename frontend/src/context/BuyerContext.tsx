@@ -76,8 +76,13 @@ export function BuyerProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(NAME_KEY)
     // The cart belongs to whichever user was logged in -- switching
     // identity must not let the next login silently pick up a stranger's
-    // in-progress cart.
-    localStorage.removeItem(CART_ID_KEY)
+    // in-progress cart. Cart keys are per-merchant (`${CART_ID_KEY}:{slug}`,
+    // see CartContext), so every key with that prefix has to go, not just
+    // one fixed key.
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(`${CART_ID_KEY}:`)) localStorage.removeItem(key)
+    }
     window.location.href = '/login'
   }
 

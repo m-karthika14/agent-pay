@@ -46,6 +46,13 @@ class AuditEvent(Base):
     order_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orders.id"), nullable=True
     )
+    # Nullable: only set on events that predate any mandate (CART_CREATED,
+    # AUTHORIZATION_REQUESTED/APPROVED/REJECTED) so they're still queryable
+    # per-buyer via app.services.audit_service.get_events_for_user -- every
+    # other event type keeps relying on mandate_id/order_id as before.
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     # Which side of the system produced this event, e.g. "SYSTEM", "USER",
     # "MERCHANT_AGENT", "INTENT_GATE" — kept as a plain string since the full

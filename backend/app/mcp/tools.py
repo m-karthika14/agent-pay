@@ -1,7 +1,15 @@
 """
-Purpose: The six MCP commerce tools Claude (the external buyer agent) uses
+Purpose: The eight MCP commerce tools Claude (the external buyer agent) uses
 to transact with AgentPay's demo merchants -- UrbanNest and TechHub
 (plan.md Section 17).
+
+request_authorization()/check_authorization_status() (plan.md Phase 2) let
+Claude shop first and propose its own spending terms for a cart it already
+created, instead of always requiring a human to authorize before Claude
+acts. Claude can never sign a mandate itself through these -- approval only
+ever happens via a human's action in the storefront's popup, which calls the
+exact same mandate-signing code app.mandates.service already used for the
+existing (authorize-first) flow.
 
 Every tool here is a thin wrapper: it opens a database session and calls
 the exact same service function the REST API routes call
@@ -28,11 +36,13 @@ import uuid
 
 from mcp.server.mcpserver import MCPServer
 
+from app.authorization import service as authorization_service
 from app.carts import service as carts_service
 from app.catalog import service as catalog_service
 from app.mcp.context import mcp_db_session
 from app.merchants.service import get_merchant_by_slug
 from app.payments.checkout import create_checkout_session
+from app.schemas.authorization import AuthorizationRequestResponse, RequestAuthorizationInput
 from app.schemas.cart import CartResponse
 from app.schemas.checkout import CheckoutResponse
 from app.schemas.common import NotFoundError
@@ -159,13 +169,104 @@ async def complete_purchase(cart_id: str, mandate_id: str) -> CheckoutSessionRes
         return await create_checkout_session(session, uuid.UUID(cart_id), mandate_id)
 
 
+async def request_authorization(
+    cart_id: str,
+    product_type: str,
+    max_amount_minor: int,
+    allowed_categories: list[str],
+    allow_addons: bool = False,
+    delivery_requirement: str = "under_3_days",
+    single_use: bool = True,
+    expires_in_hours: int = 24,
+    notes: str | None = None,
+    reason: str | None = None,
+) -> AuthorizationRequestResponse:
+    """
+    Propose spending terms for a cart you've already created and filled with
+    everything you intend to buy -- for use BEFORE any mandate exists yet.
+
+    Call this once the cart is ready, instead of asking the human out of
+    band for a mandate_id. A human must then Approve (as-is or with edited
+    terms) or Reject in the AgentPay app before you can proceed -- never
+    assume approval. Poll check_authorization_status() with the returned
+    request_id to find out what they decided; only once it reports status
+    "APPROVED" do you have a real mandate_id to pass to request_checkout().
+
+    Args:
+        cart_id: The cart this request is for (its user and merchant are
+            read from the cart itself).
+        product_type: What you're asking to buy, e.g. "wireless earbuds".
+        max_amount_minor: Your suggested spending cap, in minor currency
+            units (e.g. paise for INR). The human may lower this.
+        allowed_categories: Product categories you're asking to be allowed
+            to buy in (e.g. ["audio"]). The human may narrow this.
+        allow_addons: Whether you're asking to be allowed to accept a
+            merchant's upsell/add-on proposal during checkout.
+        delivery_requirement: e.g. "under_3_days".
+        single_use: Whether the resulting mandate should only authorize one
+            purchase.
+        expires_in_hours: How long you're asking the resulting mandate to
+            stay valid for.
+        notes: Any constraint worth stating explicitly, e.g. "no unnecessary
+            accessories".
+        reason: A short explanation of why you're asking for this, shown
+            as-is to the human (e.g. "matches your request for wireless
+            earbuds under Rs 2,500 -- TechHub has the best price").
+    """
+    async with mcp_db_session() as session:
+        return await authorization_service.create_authorization_request(
+            session,
+            RequestAuthorizationInput(
+                cart_id=cart_id,
+                product_type=product_type,
+                max_amount_minor=max_amount_minor,
+                allowed_categories=allowed_categories,
+                allow_addons=allow_addons,
+                delivery_requirement=delivery_requirement,
+                single_use=single_use,
+                expires_in_hours=expires_in_hours,
+                notes=notes,
+                reason=reason,
+            ),
+        )
+
+
+async def check_authorization_status(request_id: str) -> AuthorizationRequestResponse:
+    """
+    Check what the human decided about a request_authorization() call.
+
+    Poll this after calling request_authorization() -- do not proceed until
+    status is "APPROVED". If "APPROVED", resulting_mandate_id is the real,
+    signed mandate_id to pass to request_checkout(); the human may have
+    edited your suggested terms (a lower cap, fewer categories), and
+    whatever they approved is what's actually enforced, not what you
+    originally asked for. If "REJECTED", stop -- do not retry the same ask
+    without the human changing their mind. If still "PENDING", wait and
+    check again later.
+
+    Args:
+        request_id: The request_id returned by request_authorization().
+    """
+    async with mcp_db_session() as session:
+        return await authorization_service.get_authorization_request(session, uuid.UUID(request_id))
+
+
 #: Every tool function, in the order plan.md Section 17 lists them.
-ALL_TOOLS = (search_products, get_product, create_cart, add_to_cart, request_checkout, complete_purchase)
+ALL_TOOLS = (
+    search_products,
+    get_product,
+    create_cart,
+    add_to_cart,
+    request_checkout,
+    complete_purchase,
+    request_authorization,
+    check_authorization_status,
+)
 
 
 def register_tools(server: MCPServer) -> None:
     """
-    Attach all six commerce tools to an MCPServer instance.
+    Attach all eight commerce tools to an MCPServer instance.
 
     Args:
         server: The MCPServer to register tools onto. Production code

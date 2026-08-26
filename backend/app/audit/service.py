@@ -48,6 +48,7 @@ def build_audit_event(event: AuditEventInput, previous_hash: str | None) -> Audi
         reason_code=event.reason_code,
         mandate_id=event.mandate_id,
         order_id=event.order_id,
+        user_id=event.user_id,
     )
 
 
@@ -87,6 +88,7 @@ async def append_event(session: AsyncSession, event: AuditEventInput) -> AuditEv
         event_id=record.event_id,
         mandate_id=uuid.UUID(record.mandate_id) if record.mandate_id else None,
         order_id=uuid.UUID(record.order_id) if record.order_id else None,
+        user_id=uuid.UUID(record.user_id) if record.user_id else None,
         event_type=record.event_type,
         actor_type=record.actor_type,
         payload_hash=record.payload_hash,

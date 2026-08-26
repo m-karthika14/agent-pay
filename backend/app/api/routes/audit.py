@@ -30,6 +30,20 @@ async def get_mandate_audit_events(
     return ApiSuccessResponse(data=events)
 
 
+@router.get("/by-user/{user_id}", response_model=ApiSuccessResponse[list[AuditEventRecord]])
+async def get_user_audit_events(
+    user_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
+) -> ApiSuccessResponse[list[AuditEventRecord]]:
+    """
+    Fetch a buyer's own pre-mandate audit events (CART_CREATED,
+    AUTHORIZATION_REQUESTED/APPROVED/REJECTED), oldest first -- the events
+    get_events_for_mandate can never see, since none of them carry a
+    mandate_id yet.
+    """
+    events = await audit_service.get_events_for_user(session, user_id)
+    return ApiSuccessResponse(data=events)
+
+
 @router.get("/{transaction_id}", response_model=ApiSuccessResponse[list[AuditEventRecord]])
 async def get_transaction_audit_events(
     transaction_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
