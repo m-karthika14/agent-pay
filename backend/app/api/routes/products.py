@@ -2,18 +2,19 @@
 Purpose: Catalog API routes (plan.md Section 18 — Products).
 
 Thin HTTP layer: all real logic lives in app.catalog.service, so MCP's
-future search_products()/get_product() tools (Phase 5) can call the exact
-same functions rather than duplicating catalog logic (plan.md Section 17's
-"one source of truth" rule).
+search_products()/get_product() tools call the exact same functions rather
+than duplicating catalog logic (plan.md Section 17's "one source of truth"
+rule).
 """
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog import service as catalog_service
 from app.db.session import get_db_session
-from app.schemas.common import ApiSuccessResponse
+from app.merchants.service import get_merchant_by_slug
+from app.schemas.common import ApiSuccessResponse, NotFoundError
 from app.schemas.product import InventoryResponse, ProductResponse
 
 router = APIRouter(prefix="/api/products", tags=["products"])
@@ -21,10 +22,17 @@ router = APIRouter(prefix="/api/products", tags=["products"])
 
 @router.get("", response_model=ApiSuccessResponse[list[ProductResponse]])
 async def list_products(
+    merchant: str | None = Query(default=None, description='Merchant slug, e.g. "techhub" -- omit to search every merchant.'),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiSuccessResponse[list[ProductResponse]]:
-    """List every active product in the catalog."""
-    products = await catalog_service.list_products(session)
+    """List active products -- every demo merchant's, or just one merchant's if `merchant` is given."""
+    merchant_id = None
+    if merchant is not None:
+        merchant_row = await get_merchant_by_slug(session, merchant)
+        if merchant_row is None:
+            raise NotFoundError("MERCHANT_NOT_FOUND", f"No merchant with slug '{merchant}'.")
+        merchant_id = merchant_row.id
+    products = await catalog_service.list_products(session, merchant_id)
     return ApiSuccessResponse(data=products)
 
 

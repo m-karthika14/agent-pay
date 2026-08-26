@@ -38,7 +38,7 @@ export function AgentActivityPage() {
       <div>
         <h1 className="text-lg font-semibold text-slate-900">AI Activity</h1>
         <p className="text-sm text-slate-500">
-          Watch a buyer agent (e.g. Claude, via MCP) shop UrbanNest in near-real-time.
+          Watch a buyer agent (e.g. Claude, via MCP) shop any AgentPay merchant in near-real-time.
         </p>
       </div>
 

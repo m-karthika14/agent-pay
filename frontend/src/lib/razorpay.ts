@@ -66,6 +66,8 @@ export async function openRazorpayCheckout(options: {
   currency: string
   buyerName: string
   buyerEmail: string
+  storeName: string
+  themeColor?: string
   onSuccess: (paymentId: string) => void
   onFailure: (reason: string) => void
   onDismiss: () => void
@@ -77,10 +79,10 @@ export async function openRazorpayCheckout(options: {
     key: options.keyId,
     amount: options.amountMinor,
     currency: options.currency,
-    name: 'UrbanNest',
+    name: options.storeName,
     order_id: options.razorpayOrderId,
     prefill: { name: options.buyerName, email: options.buyerEmail },
-    theme: { color: '#0f172a' },
+    theme: { color: options.themeColor ?? '#0f172a' },
     handler: (response) => options.onSuccess(response.razorpay_payment_id),
     modal: { ondismiss: options.onDismiss },
   })

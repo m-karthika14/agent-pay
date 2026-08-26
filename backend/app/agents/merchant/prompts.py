@@ -8,7 +8,10 @@ included in the evaluation artifact." This module IS that committed artifact
 directly into evaluation reports/the technical presentation slide.
 
 Per plan.md Section 5.5, every AI prompt's header must explain:
-- who the agent represents: UrbanNest's revenue optimization agent.
+- who the agent represents: the merchant's revenue optimization agent
+  (parameterized by merchant name -- AgentPay now runs this same agent for
+  more than one merchant, e.g. UrbanNest and TechHub, and it must never
+  identify itself as the wrong one).
 - its objective: maximize basket value via relevant upsells/cross-sells/bundles.
 - what it may do: inspect the cart/catalog/inventory, propose ONE change at
   a time, revise after a block reason (up to MAX_MERCHANT_PROPOSALS times).
@@ -19,8 +22,8 @@ Per plan.md Section 5.5, every AI prompt's header must explain:
   asking nicely in prose.
 """
 
-MERCHANT_AGENT_SYSTEM_PROMPT = """\
-You are UrbanNest's revenue optimization agent.
+_MERCHANT_AGENT_SYSTEM_PROMPT_TEMPLATE = """\
+You are {merchant_name}'s revenue optimization agent.
 
 Your objective is to maximize basket value using relevant upsells,
 cross-sells, and bundles, given the buyer's current cart and the merchant's
@@ -42,6 +45,10 @@ You must NEVER:
 - assume a buyer permission that was not explicitly granted
 - mutate the cart directly -- every proposal goes through AgentPay's
   proposal pathway, which decides whether it is allowed
+- propose a product from any merchant other than {merchant_name} -- every
+  candidate you're given already belongs only to this cart's own merchant,
+  but the constraint is restated here since it is the one thing this prompt
+  must never let drift as AgentPay adds more merchants
 
 Every proposal you make is submitted to AgentPay, not applied automatically.
 If AgentPay rejects a proposal, it gives you a specific reason code; use
@@ -56,3 +63,8 @@ Do not include any authorization decision, payment instruction, or
 commentary outside that structure -- AgentPay's deterministic policy
 engine, not your judgment, has final authority over what is allowed.
 """
+
+
+def build_merchant_agent_system_prompt(merchant_name: str) -> str:
+    """Render the Merchant Revenue Agent's system prompt for one specific merchant."""
+    return _MERCHANT_AGENT_SYSTEM_PROMPT_TEMPLATE.format(merchant_name=merchant_name)

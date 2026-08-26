@@ -7,12 +7,13 @@ MCP never diverge into two cart implementations (plan.md Section 17).
 """
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.carts import service as carts_service
 from app.db.session import get_db_session
 from app.mandates.service import get_mandate_by_business_id
+from app.merchants.service import get_merchant_by_slug
 from app.schemas.cart import (
     AddCartItemRequest,
     CartResponse,
@@ -42,14 +43,24 @@ async def get_cart_by_mandate(
 
 @router.get("/by-user/{user_id}", response_model=ApiSuccessResponse[CartResponse | None])
 async def get_open_cart_for_user(
-    user_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
+    user_id: uuid.UUID,
+    merchant: str | None = Query(default=None, description='Merchant slug, e.g. "techhub" -- scope to that merchant\'s cart only.'),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiSuccessResponse[CartResponse | None]:
     """
     Fetch a logged-in buyer's current OPEN cart, or null if they have none
     right now. Lets the storefront discover a cart Claude created via MCP
-    under this same user_id (plan.md Section 19 login).
+    under this same user_id (plan.md Section 19 login). Pass `merchant` from
+    a merchant-scoped storefront page so it never surfaces a different
+    merchant's cart -- a user can have a separate OPEN cart at each merchant.
     """
-    cart = await carts_service.get_open_cart_for_user(session, user_id)
+    merchant_id = None
+    if merchant is not None:
+        merchant_row = await get_merchant_by_slug(session, merchant)
+        if merchant_row is None:
+            raise NotFoundError("MERCHANT_NOT_FOUND", f"No merchant with slug '{merchant}'.")
+        merchant_id = merchant_row.id
+    cart = await carts_service.get_open_cart_for_user(session, user_id, merchant_id)
     return ApiSuccessResponse(data=cart)
 
 

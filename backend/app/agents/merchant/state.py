@@ -20,6 +20,10 @@ class MerchantAgentState(TypedDict):
 
     cart_id: str
     merchant_id: str
+    #: This cart's merchant's display name (e.g. "TechHub") -- used to build
+    #: a per-merchant system prompt (app.agents.merchant.prompts) and to
+    #: scope candidate product search to this merchant only.
+    merchant_name: str
     mandate_id: str
 
     #: Snapshot of the cart at the start of the run (CartResponse.model_dump()).

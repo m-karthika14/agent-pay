@@ -1,12 +1,15 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CartItemRow } from '../components/CartItemRow'
 import { useCart } from '../context/CartContext'
 import { formatCurrency } from '../lib/formatCurrency'
+import { getMerchantTheme } from '../lib/merchantTheme'
 
 /** Cart contents page: line items with quantity controls, subtotal, and a link into checkout. */
 export function CartPage() {
+  const { merchantSlug } = useParams<{ merchantSlug: string }>()
   const { cart, loading, error, updateItem, removeItem } = useCart()
   const navigate = useNavigate()
+  const theme = getMerchantTheme(merchantSlug)
 
   if (loading && !cart) return <p className="text-sm text-slate-500">Loading cart…</p>
 
@@ -15,7 +18,7 @@ export function CartPage() {
       <div className="space-y-3">
         <h1 className="text-lg font-semibold text-slate-900">Your cart</h1>
         <p className="text-sm text-slate-500">Your cart is empty.</p>
-        <Link to="/" className="text-sm font-medium text-slate-900 underline">
+        <Link to={`/store/${merchantSlug}`} className="text-sm font-medium text-slate-900 underline">
           Browse products
         </Link>
       </div>
@@ -46,8 +49,8 @@ export function CartPage() {
       </div>
       <button
         type="button"
-        onClick={() => navigate('/checkout')}
-        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
+        onClick={() => navigate(`/store/${merchantSlug}/checkout`)}
+        className={`w-full rounded-md px-4 py-2 text-sm font-medium text-white transition ${theme.primaryButton}`}
       >
         Authorize purchase
       </button>

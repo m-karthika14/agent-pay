@@ -1,6 +1,7 @@
 """
 Purpose: The six MCP commerce tools Claude (the external buyer agent) uses
-to transact with UrbanNest (plan.md Section 17).
+to transact with AgentPay's demo merchants -- UrbanNest and TechHub
+(plan.md Section 17).
 
 Every tool here is a thin wrapper: it opens a database session and calls
 the exact same service function the REST API routes call
@@ -30,25 +31,43 @@ from mcp.server.mcpserver import MCPServer
 from app.carts import service as carts_service
 from app.catalog import service as catalog_service
 from app.mcp.context import mcp_db_session
+from app.merchants.service import get_merchant_by_slug
 from app.payments.checkout import create_checkout_session
 from app.schemas.cart import CartResponse
 from app.schemas.checkout import CheckoutResponse
+from app.schemas.common import NotFoundError
 from app.schemas.payment import CheckoutSessionResponse
 from app.schemas.product import ProductResponse
 from app.services import checkout_service
 
 
-async def search_products() -> list[ProductResponse]:
+async def search_products(merchant: str | None = None) -> list[ProductResponse]:
     """
-    List every active product in the UrbanNest catalog.
+    List active products across AgentPay's demo merchants (currently
+    UrbanNest and TechHub) -- or just one, if you already know which.
 
-    Call this first to discover what UrbanNest sells before creating a cart.
-    Each result includes the product's id, name, description, price (in
-    minor currency units, e.g. paise for INR), currency, category, live
-    stock availability, delivery policy, and return policy.
+    Call this first to discover what's available before creating a cart. If
+    the buyer's request could be satisfied by more than one merchant (e.g.
+    both sell wireless earbuds), leave `merchant` unset so you see every
+    merchant's offering together and can compare price/category before
+    choosing -- do not assume one merchant is better without checking. Each
+    result includes the product's id, name, description, price (in minor
+    currency units, e.g. paise for INR), currency, category, which merchant
+    it belongs to (merchant_name/merchant_slug), live stock availability,
+    delivery policy, and return policy.
+
+    Args:
+        merchant: Optional merchant slug (e.g. "techhub") to search only
+            that merchant. Omit to search every demo merchant at once.
     """
     async with mcp_db_session() as session:
-        return await catalog_service.list_products(session)
+        merchant_id = None
+        if merchant is not None:
+            merchant_row = await get_merchant_by_slug(session, merchant)
+            if merchant_row is None:
+                raise NotFoundError("MERCHANT_NOT_FOUND", f"No merchant with slug '{merchant}'.")
+            merchant_id = merchant_row.id
+        return await catalog_service.list_products(session, merchant_id)
 
 
 async def get_product(product_id: str) -> ProductResponse:

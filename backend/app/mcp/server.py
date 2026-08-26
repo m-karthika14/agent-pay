@@ -22,12 +22,15 @@ settings = get_settings()
 mcp = MCPServer(
     name=settings.mcp_server_name,
     instructions=(
-        "AgentPay merchant MCP server. Exposes UrbanNest's catalog and "
-        "commerce flow (search, cart, checkout) to external AI buyer "
-        "agents. All financial authorization is enforced deterministically "
-        "server-side -- tool calls that violate a signed mandate or fail a "
-        "hard check return an error; no tool call can bypass AgentPay's "
-        "policy engine."
+        "AgentPay merchant MCP server. Exposes multiple AI-transactable "
+        "merchants' catalogs and a shared commerce flow (search, cart, "
+        "checkout) to external AI buyer agents -- call search_products() "
+        "with no merchant argument to search every merchant at once (e.g. "
+        "to compare prices across merchants), or pass a specific merchant "
+        "slug once you know which one to shop. All financial authorization "
+        "is enforced deterministically server-side -- tool calls that "
+        "violate a signed mandate or fail a hard check return an error; no "
+        "tool call can bypass AgentPay's policy engine."
     ),
 )
 

@@ -35,7 +35,7 @@ export function LoginPage() {
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-center text-sm font-semibold tracking-tight text-indigo-600">UrbanNest</p>
+        <p className="text-center text-sm font-semibold tracking-tight text-indigo-600">AgentPay</p>
         <h1 className="mt-1 text-center text-xl font-semibold text-slate-900">Welcome back 👋</h1>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="mt-6 space-y-4">

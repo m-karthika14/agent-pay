@@ -7,6 +7,8 @@
 export interface ProductResponse {
   product_id: string
   merchant_id: string
+  merchant_name: string
+  merchant_slug: string
   sku: string
   name: string
   description: string

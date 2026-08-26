@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.merchant import tools
-from app.agents.merchant.prompts import MERCHANT_AGENT_SYSTEM_PROMPT
+from app.agents.merchant.prompts import build_merchant_agent_system_prompt
 from app.agents.merchant.state import MerchantAgentState
 from app.ai.errors import LLMError
 from app.ai.llm_client import classify_with_schema
@@ -65,16 +65,21 @@ def make_analyze_cart_node(session: AsyncSession):
 
     async def analyze_cart(state: MerchantAgentState) -> dict:
         cart = await tools.get_cart(session, state["cart_id"])
-        return {"original_cart": cart.model_dump(mode="json"), "merchant_id": cart.merchant_id}
+        merchant_name = await tools.get_merchant_name(session, cart.merchant_id)
+        return {
+            "original_cart": cart.model_dump(mode="json"),
+            "merchant_id": cart.merchant_id,
+            "merchant_name": merchant_name,
+        }
 
     return analyze_cart
 
 
 def make_search_relevant_products_node(session: AsyncSession):
-    """Build the search_relevant_products node: find products not already in the cart."""
+    """Build the search_relevant_products node: find this merchant's products not already in the cart."""
 
     async def search_relevant_products(state: MerchantAgentState) -> dict:
-        all_products = await tools.search_products(session)
+        all_products = await tools.search_products(session, state["merchant_id"])
         cart_product_ids = {item["product_id"] for item in state["original_cart"]["items"]}
         candidates = [p.model_dump(mode="json") for p in all_products if p.product_id not in cart_product_ids]
         return {"candidate_products": candidates}
@@ -121,10 +126,9 @@ def make_generate_candidates_node():
             "Propose up to 3 ranked upsell/cross-sell candidates from this list "
             "that would genuinely increase basket value for this cart."
         )
+        system_instruction = build_merchant_agent_system_prompt(state["merchant_name"])
         try:
-            result = await classify_with_schema(
-                prompt, _CandidateProposalList, system_instruction=MERCHANT_AGENT_SYSTEM_PROMPT
-            )
+            result = await classify_with_schema(prompt, _CandidateProposalList, system_instruction=system_instruction)
         except LLMError:
             logger.warning("Merchant agent: LLM unavailable, proceeding with no proposal.", exc_info=True)
             return {"ranked_candidates": []}

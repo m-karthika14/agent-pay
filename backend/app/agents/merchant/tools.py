@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.carts import service as carts_service
 from app.catalog import service as catalog_service
+from app.merchants.service import get_merchant_name as _get_merchant_name
 from app.schemas.cart import CartResponse
 from app.schemas.product import InventoryResponse, ProductResponse
 from app.schemas.proposal import MerchantProposal, ProposalEvaluation
@@ -30,9 +31,18 @@ async def get_cart(session: AsyncSession, cart_id: str) -> CartResponse:
     return await carts_service.get_cart(session, uuid.UUID(cart_id))
 
 
-async def search_products(session: AsyncSession) -> list[ProductResponse]:
-    """List the merchant's full active catalog."""
-    return await catalog_service.list_products(session)
+async def get_merchant_name(session: AsyncSession, merchant_id: str) -> str:
+    """Fetch this cart's merchant's display name, for the per-merchant system prompt."""
+    return await _get_merchant_name(session, uuid.UUID(merchant_id))
+
+
+async def search_products(session: AsyncSession, merchant_id: str) -> list[ProductResponse]:
+    """
+    List only this cart's own merchant's active catalog -- never another
+    merchant's products, so a TechHub cart can never be offered an
+    UrbanNest upsell (or vice versa).
+    """
+    return await catalog_service.list_products(session, uuid.UUID(merchant_id))
 
 
 async def get_product(session: AsyncSession, product_id: str) -> ProductResponse:

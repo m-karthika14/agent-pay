@@ -4,9 +4,9 @@
 import { apiGet } from './apiClient'
 import type { InventoryResponse, ProductResponse } from '../types/product'
 
-/** List every active product in the catalog. */
-export function listProducts(): Promise<ProductResponse[]> {
-  return apiGet<ProductResponse[]>('/api/products')
+/** List active products -- every demo merchant's, or just one (by slug) if given. */
+export function listProducts(merchantSlug?: string): Promise<ProductResponse[]> {
+  return apiGet<ProductResponse[]>(merchantSlug ? `/api/products?merchant=${encodeURIComponent(merchantSlug)}` : '/api/products')
 }
 
 /** Fetch a single product by id. */

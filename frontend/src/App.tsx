@@ -6,9 +6,10 @@ import { AppRoutes } from './routes/AppRoutes'
 /**
  * Root application composition for AgentPay.
  *
- * Wraps React Router around both the UrbanNest storefront (HomePage,
- * ProductPage, CartPage, CheckoutPage, OrderPage, AgentActivityPage) and
- * the read-only Merchant Console (plan.md Section 19.2), under a shared
+ * Wraps React Router around both the multi-merchant storefront (LandingPage,
+ * HomePage, ProductPage, CartPage, CheckoutPage, OrderPage,
+ * AgentActivityPage -- one instance per merchant, under /store/:merchantSlug)
+ * and the read-only Merchant Console (plan.md Section 19.2), under a shared
  * demo buyer identity + cart state (BuyerProvider/CartProvider) that only
  * the storefront routes actually use.
  */

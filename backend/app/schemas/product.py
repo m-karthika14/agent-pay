@@ -5,9 +5,14 @@ Fields match plan.md's "Catalog APIs" description (Section 2 of final.md /
 plan.md Section 18/19): product_id, name, price, currency, category,
 availability, delivery, return_policy. `delivery` and `return_policy` are not
 per-product database columns (plan.md Section 8.3 defines the products
-table without them) — UrbanNest is a single small demo merchant with one
-uniform delivery/return policy, so these are attached as constants by
-app.catalog.service rather than invented as new schema columns.
+table without them) — each demo merchant has one uniform delivery/return
+policy, so these are attached as constants by app.catalog.service rather
+than invented as new schema columns.
+
+`merchant_name`/`merchant_slug` (added alongside the bare `merchant_id` UUID
+when AgentPay grew a second merchant) let a caller comparing products across
+merchants -- e.g. a buyer agent choosing between UrbanNest and TechHub --
+attribute each result to a merchant by name without a second lookup.
 """
 from pydantic import BaseModel
 
@@ -17,6 +22,8 @@ class ProductResponse(BaseModel):
 
     product_id: str
     merchant_id: str
+    merchant_name: str
+    merchant_slug: str
     sku: str
     name: str
     description: str

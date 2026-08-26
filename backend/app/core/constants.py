@@ -30,10 +30,13 @@ DEFAULT_RETURN_POLICY = "7-day returns"
 CART_STATUS_OPEN = "OPEN"
 CART_STATUS_FROZEN = "FROZEN"
 
-# The one real demo merchant (plan.md Section 18 / scripts/seed_database.py).
-# app.catalog.service's catalog listing filters to this merchant specifically
-# so the storefront/MCP catalog never picks up throwaway merchants the test
-# suite creates (each integration test creates its own isolated
-# merchant+product fixtures, independent of this seeded one -- see
-# tests/integration/*.py's `_create_fixture_data()` helpers).
+# The real demo merchants (plan.md Section 18 / scripts/seed_database.py).
+# app.catalog.service's catalog listing filters to exactly these merchants
+# (when no specific one is requested) so the storefront/MCP catalog never
+# picks up throwaway merchants the test suite creates (each integration test
+# creates its own isolated merchant+product fixtures, independent of these
+# seeded ones -- see tests/integration/*.py's `_create_fixture_data()`
+# helpers).
 URBANNEST_SLUG = "urbannest"
+TECHHUB_SLUG = "techhub"
+DEMO_MERCHANT_SLUGS = (URBANNEST_SLUG, TECHHUB_SLUG)

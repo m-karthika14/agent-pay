@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { LiveConversation } from '../components/LiveConversation'
 import { useBuyer } from '../context/BuyerContext'
 import { useCart } from '../context/CartContext'
+import { useMerchants } from '../hooks/useMerchants'
 import { getMandateAuditEvents } from '../services/auditApi'
 import { completePurchase, requestCheckout } from '../services/checkoutApi'
 import { createMandate } from '../services/mandateApi'
 import { getProduct } from '../services/productApi'
 import { usePolling } from '../hooks/usePolling'
 import { formatCurrency } from '../lib/formatCurrency'
+import { getMerchantTheme } from '../lib/merchantTheme'
 import { openRazorpayCheckout } from '../lib/razorpay'
 import type { CheckoutResponse } from '../types/checkout'
 
@@ -20,9 +22,13 @@ type Phase = 'review' | 'authorizing' | 'authorized' | 'paying' | 'failed'
  * for the frozen cart (plan.md Section 18/22).
  */
 export function CheckoutPage() {
+  const { merchantSlug } = useParams<{ merchantSlug: string }>()
   const { cart, clearCart } = useCart()
   const { email, name } = useBuyer()
+  const { data: merchants } = useMerchants()
   const navigate = useNavigate()
+  const theme = getMerchantTheme(merchantSlug)
+  const merchantName = merchants?.find((m) => m.slug === merchantSlug)?.name ?? merchantSlug ?? 'AgentPay'
 
   const [phase, setPhase] = useState<Phase>('review')
   const [notes, setNotes] = useState('')
@@ -102,6 +108,8 @@ export function CheckoutPage() {
         currency: session.currency,
         buyerName: name ?? 'Storefront Buyer',
         buyerEmail: email ?? '',
+        storeName: merchantName,
+        themeColor: theme.razorpayColor,
         onSuccess: () => {
           clearCart()
           navigate(`/order/${session.order_id}?mandate=${mandateId}`)
@@ -164,7 +172,7 @@ export function CheckoutPage() {
             type="button"
             disabled={!email}
             onClick={() => void handleAuthorize()}
-            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-40"
+            className={`w-full rounded-md px-4 py-2 text-sm font-medium text-white transition disabled:opacity-40 ${theme.primaryButton}`}
           >
             Authorize purchase
           </button>
@@ -180,7 +188,7 @@ export function CheckoutPage() {
             type="button"
             disabled={phase === 'paying'}
             onClick={() => void handlePay()}
-            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-50"
+            className={`w-full rounded-md px-4 py-2 text-sm font-medium text-white transition disabled:opacity-50 ${theme.primaryButton}`}
           >
             {phase === 'paying' ? 'Opening Razorpay…' : `Pay ${formatCurrency(checkoutResult.cart.subtotal_minor, cart.currency)}`}
           </button>

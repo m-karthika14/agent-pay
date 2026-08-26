@@ -2,9 +2,9 @@ import { useAsync } from './useAsync'
 import { listProducts, getProduct, getProductInventory } from '../services/productApi'
 import type { InventoryResponse, ProductResponse } from '../types/product'
 
-/** Fetch the full storefront catalog. */
-export function useProducts() {
-  return useAsync<ProductResponse[]>(() => listProducts(), [])
+/** Fetch the storefront catalog -- every demo merchant's, or just one (by slug) if given. */
+export function useProducts(merchantSlug?: string) {
+  return useAsync<ProductResponse[]>(() => listProducts(merchantSlug), [merchantSlug])
 }
 
 /** Fetch a single product (and its stock level) by id. */

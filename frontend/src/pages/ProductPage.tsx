@@ -4,15 +4,17 @@ import { ProductImage } from '../components/ProductImage'
 import { useCart } from '../context/CartContext'
 import { useProduct } from '../hooks/useProducts'
 import { formatCurrency } from '../lib/formatCurrency'
+import { getMerchantTheme } from '../lib/merchantTheme'
 
 /** Product detail page: price, category, stock, delivery, return policy, and add-to-cart. Wrapped in RequireBuyer, so a logged-in buyer is guaranteed. */
 export function ProductPage() {
-  const { productId } = useParams<{ productId: string }>()
+  const { merchantSlug, productId } = useParams<{ merchantSlug: string; productId: string }>()
   const { product, inventory } = useProduct(productId)
   const { addItem, loading: cartLoading } = useCart()
   const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<Error | null>(null)
+  const theme = getMerchantTheme(merchantSlug)
 
   if (product.loading) return <p className="text-sm text-slate-500">Loading…</p>
   if (product.error) return <p className="text-sm text-red-600">{product.error.message}</p>
@@ -27,7 +29,7 @@ export function ProductPage() {
     setAddError(null)
     try {
       await addItem(productId, p.merchant_id, 1)
-      navigate('/cart')
+      navigate(`/store/${merchantSlug}/cart`)
     } catch (err) {
       setAddError(err instanceof Error ? err : new Error(String(err)))
     } finally {
@@ -40,7 +42,7 @@ export function ProductPage() {
       <ProductImage category={p.category} className="aspect-square rounded-2xl" />
 
       <div className="space-y-4">
-        <p className="text-xs font-semibold tracking-wide text-indigo-500 uppercase">{p.category}</p>
+        <p className={`text-xs font-semibold tracking-wide uppercase ${theme.accentText}`}>{p.category}</p>
         <h1 className="text-xl font-semibold text-slate-900">{p.name}</h1>
         <p className="text-sm text-slate-600">{p.description}</p>
         <p className="text-2xl font-bold text-slate-900">{formatCurrency(p.price_minor, p.currency)}</p>
@@ -66,7 +68,7 @@ export function ProductPage() {
           type="button"
           disabled={!inStock || adding || cartLoading}
           onClick={handleAddToCart}
-          className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-40"
+          className={`w-full rounded-md px-4 py-2 text-sm font-medium text-white transition disabled:opacity-40 ${theme.primaryButton}`}
         >
           {!inStock ? 'Out of stock' : adding ? 'Adding…' : 'Add to cart'}
         </button>

@@ -38,6 +38,7 @@ async def run_merchant_agent(session: AsyncSession, cart_id: uuid.UUID, mandate_
     initial_state: MerchantAgentState = {
         "cart_id": str(cart_id),
         "merchant_id": "",
+        "merchant_name": "",
         "mandate_id": mandate_id,
         "original_cart": {},
         "candidate_products": [],

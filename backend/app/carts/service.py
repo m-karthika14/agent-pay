@@ -182,7 +182,9 @@ async def get_cart_by_mandate(session: AsyncSession, mandate_row_id: uuid.UUID) 
     return await to_cart_response(session, cart)
 
 
-async def get_open_cart_for_user(session: AsyncSession, user_id: uuid.UUID) -> CartResponse | None:
+async def get_open_cart_for_user(
+    session: AsyncSession, user_id: uuid.UUID, merchant_id: uuid.UUID | None = None
+) -> CartResponse | None:
     """
     Fetch a user's current OPEN cart, if any -- the most recently created
     one, in the unlikely event more than one somehow exists.
@@ -195,18 +197,23 @@ async def get_open_cart_for_user(session: AsyncSession, user_id: uuid.UUID) -> C
     Args:
         session: Active AsyncSession.
         user_id: The buyer's internal User.id.
+        merchant_id: If given, only consider carts at that merchant. With
+            more than one merchant, a user can have a separate OPEN cart at
+            each -- omitting this returns whichever is most recent across
+            all of them, which is what a merchant-agnostic caller (e.g. the
+            "Buying History"-style views) wants; a merchant-scoped
+            storefront page should always pass this so its own cart page
+            never shows a different merchant's cart.
 
     Returns:
-        The cart, or None if this user has no OPEN cart right now -- a
-        normal state (nothing added yet, or their last cart already froze),
-        not an error.
+        The cart, or None if this user has no matching OPEN cart right now
+        -- a normal state (nothing added yet, or their last cart already
+        froze), not an error.
     """
-    result = await session.execute(
-        select(Cart)
-        .where(Cart.user_id == user_id, Cart.status == CART_STATUS_OPEN)
-        .order_by(Cart.created_at.desc())
-        .limit(1)
-    )
+    query = select(Cart).where(Cart.user_id == user_id, Cart.status == CART_STATUS_OPEN)
+    if merchant_id is not None:
+        query = query.where(Cart.merchant_id == merchant_id)
+    result = await session.execute(query.order_by(Cart.created_at.desc()).limit(1))
     cart = result.scalars().first()
     if cart is None:
         return None

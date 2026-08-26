@@ -28,6 +28,7 @@ from app.api.routes import (
     console,
     health,
     mandates,
+    merchants,
     orders,
     products,
     transactions,
@@ -81,6 +82,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(merchants.router)
 app.include_router(products.router)
 app.include_router(users.router)
 app.include_router(auth.router)

@@ -1,18 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useBuyer } from '../context/BuyerContext'
 import { useAsync } from '../hooks/useAsync'
+import { useMerchants } from '../hooks/useMerchants'
 import { useProducts } from '../hooks/useProducts'
 import { formatCurrency } from '../lib/formatCurrency'
-import { formatDate } from '../lib/formatDate'
 import { createMandate, listMandatesForUser } from '../services/mandateApi'
 import type { MandateResponse } from '../types/mandate'
 
 const DEFAULT_HOURS = 24
 
 /**
- * Authorize an AI agent (e.g. Claude, via MCP) to shop UrbanNest on the
- * buyer's behalf -- independent of /checkout's mandate.
+ * Authorize an AI agent (e.g. Claude, via MCP) to shop a merchant of the
+ * buyer's choosing on their behalf -- independent of /checkout's mandate.
  *
  * /checkout's "Authorize purchase" creates a mandate and immediately
  * freezes the browser's own current cart under it in the same step -- it's
@@ -32,7 +32,14 @@ const DEFAULT_HOURS = 24
  */
 export function AuthorizeAgentPage() {
   const { userId, email, name } = useBuyer()
-  const { data: products } = useProducts()
+  const { data: merchants } = useMerchants()
+
+  const [merchantSlug, setMerchantSlug] = useState<string>('')
+  useEffect(() => {
+    if (!merchantSlug && merchants && merchants.length > 0) setMerchantSlug(merchants[0].slug)
+  }, [merchants, merchantSlug])
+
+  const { data: products } = useProducts(merchantSlug || undefined)
 
   const [maxAmount, setMaxAmount] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
@@ -52,7 +59,13 @@ export function AuthorizeAgentPage() {
   const mandates = useAsync<MandateResponse[]>(fetchMandates, [userId, refreshKey])
 
   const categories = [...new Set((products ?? []).map((p) => p.category))].sort()
-  const merchantId = products?.[0]?.merchant_id
+  const merchantId = merchants?.find((m) => m.slug === merchantSlug)?.merchant_id
+
+  useEffect(() => {
+    // Categories are merchant-specific -- a category checked for one
+    // merchant is meaningless (and invisible) once the merchant changes.
+    setSelectedCategories(new Set())
+  }, [merchantSlug])
 
   function toggleCategory(category: string) {
     setSelectedCategories((prev) => {
@@ -105,7 +118,10 @@ export function AuthorizeAgentPage() {
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
           <p className="text-2xl">✓</p>
           <h2 className="mt-1 text-base font-semibold text-emerald-900">Agent authorized</h2>
-          <p className="mt-1 text-sm text-emerald-800">Claude can now shop UrbanNest for you, within this authorization.</p>
+          <p className="mt-1 text-sm text-emerald-800">
+            Claude can now shop {merchants?.find((m) => m.slug === merchantSlug)?.name ?? 'this merchant'} for you, within this
+            authorization.
+          </p>
           <p className="mt-3 rounded-md bg-white px-3 py-2 font-mono text-sm break-all text-slate-900">{justCreated.mandate_id}</p>
           <button
             type="button"
@@ -123,8 +139,21 @@ export function AuthorizeAgentPage() {
               <p className="font-medium text-slate-800">Claude</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">Merchant</p>
-              <p className="font-medium text-slate-800">UrbanNest</p>
+              <label className="block text-xs text-slate-400" htmlFor="authorize-merchant">
+                Merchant
+              </label>
+              <select
+                id="authorize-merchant"
+                value={merchantSlug}
+                onChange={(e) => setMerchantSlug(e.target.value)}
+                className="mt-0.5 w-full rounded-md border border-slate-300 bg-white px-1 py-1 text-sm font-medium text-slate-800 focus:border-indigo-500 focus:outline-none"
+              >
+                {(merchants ?? []).map((merchant) => (
+                  <option key={merchant.slug} value={merchant.slug}>
+                    {merchant.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -246,8 +275,7 @@ function MandateRow({ mandate }: { mandate: MandateResponse }) {
       <div className="min-w-0">
         <p className="truncate font-mono text-sm text-slate-900">{mandate.mandate_id}</p>
         <p className="text-xs text-slate-400">
-          {formatCurrency(mandate.max_amount_minor, mandate.currency)} &middot; {mandate.status} &middot; expires{' '}
-          {formatDate(mandate.expires_at)}
+          {formatCurrency(mandate.max_amount_minor, mandate.currency)} &middot; {mandate.status} &middot; {mandate.product_type}
         </p>
       </div>
       <button

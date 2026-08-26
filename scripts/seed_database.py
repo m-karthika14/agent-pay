@@ -1,26 +1,33 @@
 #!/usr/bin/env python
 """
-Purpose: Seed the AgentPay database with the UrbanNest demo merchant,
-its small product catalog, inventory, and one demo user (plan.md Section 18).
+Purpose: Seed the AgentPay database with its two AI-transactable demo
+merchants (UrbanNest and TechHub), their product catalogs, inventory, and
+one demo user (plan.md Section 18).
 
 Responsibilities:
-- Idempotently create the UrbanNest merchant (looked up by slug).
-- Idempotently create its products (looked up by SKU) with inventory.
+- Idempotently create each merchant (looked up by slug).
+- Idempotently create each merchant's products (looked up by SKU) with
+  inventory.
 - Idempotently create one demo user (looked up by email).
 
-The catalog is deliberately interconnected -- each product has one or two
-natural companions in a different category (earbuds -> case/adapter,
+UrbanNest's catalog is deliberately interconnected -- each product has one
+or two natural companions in a different category (earbuds -> case/adapter,
 watch -> strap, power bank -> cable/charger) -- so the Merchant Revenue
 Agent (app.agents.merchant) has genuine, LLM-legible cross-sell
 opportunities to reason about from the product names/descriptions alone.
 There are no bundle SKUs: the agent creates combinations by proposing
 separate products, never a pre-packaged bundle.
 
-Wireless Earbuds (EARBUDS-001..005) and Smart Watches (WATCH-001..005) each
-span a full price range (budget through flagship) so a mandate's spending
-cap actually has meaningfully different options to land on, rather than
-one fixed price point per product line -- useful for demoing how a buyer
-agent picks within a cap, not just whether it stays under one.
+TechHub's catalog deliberately overlaps UrbanNest's product types (wireless
+earbuds, smart watch, power bank, charger, earbuds case) at different
+prices, so a buyer agent comparing merchants (app.mcp.tools.search_products
+with no merchant argument) has a genuine reason to pick one over the other
+-- not just two unrelated catalogs.
+
+UrbanNest's Wireless Earbuds (EARBUDS-001..005) and Smart Watches
+(WATCH-001..005) each span a full price range (budget through flagship) so
+a mandate's spending cap actually has meaningfully different options to
+land on, rather than one fixed price point per product line.
 
 Safe to run multiple times: existing rows (matched by their natural key)
 are left untouched rather than duplicated.
@@ -45,7 +52,7 @@ from app.db.models.product import Product  # noqa: E402
 from app.db.models.user import User  # noqa: E402
 from app.db.session import get_session_factory  # noqa: E402
 
-# UrbanNest catalog (plan.md Section 18). Prices are in paise (minor units).
+# Prices are in paise (minor units).
 URBANNEST_PRODUCTS = [
     {
         "sku": "EARBUDS-001",
@@ -177,50 +184,97 @@ URBANNEST_PRODUCTS = [
     },
 ]
 
+# TechHub's catalog: deliberately the same product types as UrbanNest's core
+# line, at different prices, so a buyer agent comparing merchants has a real
+# decision to make (plan.md's multi-merchant demo scenario).
+TECHHUB_PRODUCTS = [
+    {
+        "sku": "TH-EARBUDS-001",
+        "name": "Wireless Earbuds",
+        "description": "Bluetooth wireless earbuds with charging case.",
+        "price_minor": 229_900,
+        "category": "audio",
+        "quantity": 60,
+    },
+    {
+        "sku": "TH-WATCH-001",
+        "name": "Smart Watch",
+        "description": "Fitness smartwatch with heart-rate monitoring.",
+        "price_minor": 269_900,
+        "category": "wearables",
+        "quantity": 35,
+    },
+    {
+        "sku": "TH-POWERBANK-001",
+        "name": "10,000mAh Power Bank",
+        "description": "USB-C 10,000mAh power bank.",
+        "price_minor": 139_900,
+        "category": "power",
+        "quantity": 70,
+    },
+    {
+        "sku": "TH-CHARGER-001",
+        "name": "65W USB-C Charger",
+        "description": "65W USB-C fast charger.",
+        "price_minor": 169_900,
+        "category": "power",
+        "quantity": 45,
+    },
+    {
+        "sku": "TH-CASE-001",
+        "name": "Protective Earbuds Case",
+        "description": "Protective case compatible with wireless earbuds.",
+        "price_minor": 24_900,
+        "category": "accessories",
+        "quantity": 90,
+    },
+]
+
+MERCHANTS = [
+    {"slug": "urbannest", "name": "UrbanNest", "products": URBANNEST_PRODUCTS},
+    {"slug": "techhub", "name": "TechHub", "products": TECHHUB_PRODUCTS},
+]
+
 DEMO_USER_EMAIL = "demo@agentpay.test"
 DEMO_USER_NAME = "AgentPay Demo User"
-URBANNEST_SLUG = "urbannest"
 
 
 async def seed() -> None:
-    """Idempotently seed the merchant, catalog, inventory, and demo user."""
+    """Idempotently seed both merchants, their catalogs, inventory, and the demo user."""
     factory = get_session_factory()
     async with factory() as session:
-        merchant_result = await session.execute(
-            select(Merchant).where(Merchant.slug == URBANNEST_SLUG)
-        )
-        merchant = merchant_result.scalar_one_or_none()
-        if merchant is None:
-            merchant = Merchant(slug=URBANNEST_SLUG, name="UrbanNest", currency="INR")
-            session.add(merchant)
-            await session.flush()
-            print(f"Created merchant: {merchant.name} ({merchant.id})")
-        else:
-            print(f"Merchant already exists: {merchant.name} ({merchant.id})")
-
-        for spec in URBANNEST_PRODUCTS:
-            product_result = await session.execute(
-                select(Product).where(Product.sku == spec["sku"])
-            )
-            product = product_result.scalar_one_or_none()
-            if product is None:
-                product = Product(
-                    merchant_id=merchant.id,
-                    sku=spec["sku"],
-                    name=spec["name"],
-                    description=spec["description"],
-                    price_minor=spec["price_minor"],
-                    currency="INR",
-                    category=spec["category"],
-                    is_active=True,
-                )
-                session.add(product)
+        for merchant_spec in MERCHANTS:
+            merchant_result = await session.execute(select(Merchant).where(Merchant.slug == merchant_spec["slug"]))
+            merchant = merchant_result.scalar_one_or_none()
+            if merchant is None:
+                merchant = Merchant(slug=merchant_spec["slug"], name=merchant_spec["name"], currency="INR")
+                session.add(merchant)
                 await session.flush()
-                session.add(Inventory(product_id=product.id, quantity=spec["quantity"], reserved_quantity=0))
-                await session.flush()
-                print(f"  Created product: {product.name} ({spec['sku']}) x{spec['quantity']}")
+                print(f"Created merchant: {merchant.name} ({merchant.id})")
             else:
-                print(f"  Product already exists: {product.name} ({spec['sku']})")
+                print(f"Merchant already exists: {merchant.name} ({merchant.id})")
+
+            for spec in merchant_spec["products"]:
+                product_result = await session.execute(select(Product).where(Product.sku == spec["sku"]))
+                product = product_result.scalar_one_or_none()
+                if product is None:
+                    product = Product(
+                        merchant_id=merchant.id,
+                        sku=spec["sku"],
+                        name=spec["name"],
+                        description=spec["description"],
+                        price_minor=spec["price_minor"],
+                        currency="INR",
+                        category=spec["category"],
+                        is_active=True,
+                    )
+                    session.add(product)
+                    await session.flush()
+                    session.add(Inventory(product_id=product.id, quantity=spec["quantity"], reserved_quantity=0))
+                    await session.flush()
+                    print(f"  Created product: {product.name} ({spec['sku']}) x{spec['quantity']}")
+                else:
+                    print(f"  Product already exists: {product.name} ({spec['sku']})")
 
         user_result = await session.execute(select(User).where(User.email == DEMO_USER_EMAIL))
         user = user_result.scalar_one_or_none()
