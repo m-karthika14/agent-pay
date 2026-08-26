@@ -34,6 +34,7 @@ const BUBBLE_CLASS: Record<ConversationTone, string> = {
  */
 export function LiveConversation({ events, cart }: LiveConversationProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState(false)
   const messages = eventsToConversation(events, cart)
   const settled = isConversationSettled(events)
   const lastMessage = messages[messages.length - 1]
@@ -49,32 +50,44 @@ export function LiveConversation({ events, cart }: LiveConversationProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+    <div className="fixed top-20 right-6 z-40 flex max-h-[calc(100vh-6rem)] w-96 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-4 py-3">
         <span className="relative flex h-2.5 w-2.5">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
         </span>
-        <h2 className="text-sm font-semibold tracking-wide text-slate-700 uppercase">Live Agent Activity</h2>
+        <h2 className="flex-1 text-sm font-semibold tracking-wide text-slate-700 uppercase">Live Agent Activity</h2>
+        <button
+          type="button"
+          onClick={() => setCollapsed((prev) => !prev)}
+          aria-label={collapsed ? 'Expand' : 'Collapse'}
+          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        >
+          {collapsed ? '▾' : '▴'}
+        </button>
       </div>
 
-      <div className="space-y-4 px-4 py-4">
-        {messages.length === 0 && <p className="text-sm text-slate-400">Waiting for the first event…</p>}
+      {!collapsed && (
+        <>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+            {messages.length === 0 && <p className="text-sm text-slate-400">Waiting for the first event…</p>}
 
-        {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} expanded={expanded.has(message.id)} onToggle={() => toggle(message.id)} />
-        ))}
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} expanded={expanded.has(message.id)} onToggle={() => toggle(message.id)} />
+            ))}
 
-        {!settled && messages.length > 0 && <TypingBubble actor={typingActor} />}
-      </div>
+            {!settled && messages.length > 0 && <TypingBubble actor={typingActor} />}
+          </div>
 
-      <div className="border-t border-slate-100 px-4 py-2.5 text-xs font-medium text-slate-500">
-        {settled ? '✓ Settled' : (
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> LIVE • Transaction in progress
-          </span>
-        )}
-      </div>
+          <div className="shrink-0 border-t border-slate-100 px-4 py-2.5 text-xs font-medium text-slate-500">
+            {settled ? '✓ Settled' : (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> LIVE • Transaction in progress
+              </span>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

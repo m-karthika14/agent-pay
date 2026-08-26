@@ -5,16 +5,22 @@ its small product catalog, inventory, and one demo user (plan.md Section 18).
 
 Responsibilities:
 - Idempotently create the UrbanNest merchant (looked up by slug).
-- Idempotently create its 8 products (looked up by SKU) with inventory.
+- Idempotently create its products (looked up by SKU) with inventory.
 - Idempotently create one demo user (looked up by email).
 
-The catalog is deliberately small and interconnected -- each product has one
-or two natural companions in a different category (earbuds -> case/adapter,
+The catalog is deliberately interconnected -- each product has one or two
+natural companions in a different category (earbuds -> case/adapter,
 watch -> strap, power bank -> cable/charger) -- so the Merchant Revenue
 Agent (app.agents.merchant) has genuine, LLM-legible cross-sell
 opportunities to reason about from the product names/descriptions alone.
 There are no bundle SKUs: the agent creates combinations by proposing
 separate products, never a pre-packaged bundle.
+
+Wireless Earbuds (EARBUDS-001..005) and Smart Watches (WATCH-001..005) each
+span a full price range (budget through flagship) so a mandate's spending
+cap actually has meaningfully different options to land on, rather than
+one fixed price point per product line -- useful for demoing how a buyer
+agent picks within a cap, not just whether it stays under one.
 
 Safe to run multiple times: existing rows (matched by their natural key)
 are left untouched rather than duplicated.
@@ -50,6 +56,38 @@ URBANNEST_PRODUCTS = [
         "quantity": 50,
     },
     {
+        "sku": "EARBUDS-002",
+        "name": "Budget Wireless Earbuds",
+        "description": "Affordable true-wireless earbuds for everyday listening.",
+        "price_minor": 99_900,
+        "category": "audio",
+        "quantity": 80,
+    },
+    {
+        "sku": "EARBUDS-003",
+        "name": "Sport Wireless Earbuds",
+        "description": "Sweat-resistant wireless earbuds with a secure ear-hook fit for workouts.",
+        "price_minor": 179_900,
+        "category": "audio",
+        "quantity": 60,
+    },
+    {
+        "sku": "EARBUDS-004",
+        "name": "Wireless Earbuds Pro",
+        "description": "Active noise-cancelling wireless earbuds with a premium charging case.",
+        "price_minor": 499_900,
+        "category": "audio",
+        "quantity": 35,
+    },
+    {
+        "sku": "EARBUDS-005",
+        "name": "Studio Wireless Earbuds",
+        "description": "Flagship wireless earbuds tuned for studio-quality sound and all-day battery life.",
+        "price_minor": 799_900,
+        "category": "audio",
+        "quantity": 20,
+    },
+    {
         "sku": "CASE-001",
         "name": "Protective Earbuds Case",
         "description": "Silicone protective case designed for the wireless earbuds.",
@@ -72,6 +110,38 @@ URBANNEST_PRODUCTS = [
         "price_minor": 349_900,
         "category": "wearables",
         "quantity": 30,
+    },
+    {
+        "sku": "WATCH-002",
+        "name": "Budget Smart Watch",
+        "description": "Entry-level smart watch with step tracking and notifications.",
+        "price_minor": 149_900,
+        "category": "wearables",
+        "quantity": 50,
+    },
+    {
+        "sku": "WATCH-003",
+        "name": "Smart Watch Sport Edition",
+        "description": "Rugged smart watch with GPS and workout tracking modes.",
+        "price_minor": 299_900,
+        "category": "wearables",
+        "quantity": 40,
+    },
+    {
+        "sku": "WATCH-004",
+        "name": "Smart Watch Pro",
+        "description": "Premium smart watch with an always-on display and blood-oxygen sensor.",
+        "price_minor": 699_900,
+        "category": "wearables",
+        "quantity": 25,
+    },
+    {
+        "sku": "WATCH-005",
+        "name": "Luxury Smart Watch",
+        "description": "Flagship smart watch with a titanium frame and sapphire crystal display.",
+        "price_minor": 1_299_900,
+        "category": "wearables",
+        "quantity": 12,
     },
     {
         "sku": "STRAP-001",
