@@ -108,9 +108,11 @@ async def _mcp_client_session():
     # DNS-rebinding host validation is a real-network concern; it has no
     # meaning over an in-process ASGI transport, and its auto-detection
     # doesn't reliably recognize the synthetic "localhost" Host header
-    # httpx's ASGITransport sends. Disabling it here is test-only --
-    # app.mcp.server (production) never touches this setting and keeps the
-    # SDK's default protection.
+    # httpx's ASGITransport sends. Disabling it here is test-only -- this
+    # throwaway test_server never touches app.mcp.server's own
+    # _mcp_transport_security() (see tests/unit/test_mcp_transport_security.py
+    # for that), which explicitly allowlists the deployed hostname and keeps
+    # protection enabled in production.
     test_app = test_server.streamable_http_app(
         streamable_http_path="/",
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),

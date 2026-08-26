@@ -12,6 +12,7 @@ the v2 successor to the older v1 `FastMCP` class) rather than an outdated
 v1-era tutorial API, per plan.md Section 3.4.
 """
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 
 from app.core.config import get_settings
@@ -30,6 +31,52 @@ mcp = MCPServer(
     ),
 )
 
+# The single fixed Render hostname this backend is deployed at. Kept as an
+# explicit literal (not derived from Settings.backend_url) because
+# allowed_hosts below is a DNS-rebinding allowlist: if that setting were
+# ever left at its localhost default on the deployed service (an easy env
+# var to forget -- see Settings.backend_url's own default), every MCP
+# request would start failing with "Invalid Host header" again, silently.
+# A literal here can't be forgotten the same way.
+_RENDER_BACKEND_HOSTNAME = "agentpay-backend-wd5u.onrender.com"
+
+
+def _mcp_transport_security() -> TransportSecuritySettings:
+    """
+    DNS-rebinding protection settings for the MCP Streamable HTTP transport
+    (plan.md Section 17).
+
+    The MCP SDK validates every request's Host/Origin header against an
+    allowlist before it reaches any tool -- its own default only allows
+    localhost, which rejects every request once this server is deployed
+    anywhere else (observed live: Render's hostname got HTTP 421 "Invalid
+    Host header"). allowed_hosts is *who a client dialed* to reach /mcp
+    (the backend's own hostname); allowed_origins is *where a browser-based
+    caller says it's calling from* -- reused from CORS_ORIGINS (the same
+    trusted-frontend list CORSMiddleware already enforces in app.main) so
+    there's one source of truth for "which frontends AgentPay trusts", not
+    two lists to keep in sync. Server-to-server MCP clients (e.g. Claude's
+    connector) typically send no Origin header at all, which the SDK's own
+    validator already treats as trivially valid -- allowed_origins mainly
+    matters if a browser ever calls this endpoint directly.
+
+    enable_dns_rebinding_protection is left at its default (True) --
+    disabling it globally would accept requests claiming to be any host at
+    all, which is exactly the class of attack this setting exists to stop.
+    """
+    allowed_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+    return TransportSecuritySettings(
+        allowed_hosts=[
+            "localhost",
+            "localhost:*",
+            "127.0.0.1",
+            "127.0.0.1:*",
+            _RENDER_BACKEND_HOSTNAME,
+            f"{_RENDER_BACKEND_HOSTNAME}:*",
+        ],
+        allowed_origins=allowed_origins,
+    )
+
 
 def get_mcp_asgi_app() -> Starlette:
     """
@@ -45,4 +92,4 @@ def get_mcp_asgi_app() -> Starlette:
     from app.mcp.tools import register_tools
 
     register_tools(mcp)
-    return mcp.streamable_http_app(streamable_http_path="/")
+    return mcp.streamable_http_app(streamable_http_path="/", transport_security=_mcp_transport_security())
