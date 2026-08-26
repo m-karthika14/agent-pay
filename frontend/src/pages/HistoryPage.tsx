@@ -7,19 +7,19 @@ import { formatDate } from '../lib/formatDate'
 import { getOrderHistory } from '../services/orderApi'
 import type { OrderHistoryEntry } from '../types/transaction'
 
-/** Buying history page: every order this demo buyer has ever placed, newest first. */
+/** Buying history page: every order this demo buyer has ever placed, newest first. Wrapped in RequireBuyer, so a logged-in buyer is guaranteed. */
 export function HistoryPage() {
-  const { userId, loading: buyerLoading } = useBuyer()
+  const { userId } = useBuyer()
 
   const fetchHistory = (): Promise<OrderHistoryEntry[]> =>
-    userId ? getOrderHistory(userId) : Promise.reject(new Error('Buyer identity is not resolved yet.'))
+    userId ? getOrderHistory(userId) : Promise.reject(new Error('Not logged in.'))
   const { data: orders, loading, error } = useAsync<OrderHistoryEntry[]>(fetchHistory, [userId])
 
   return (
     <div className="max-w-2xl space-y-4">
       <h1 className="text-lg font-semibold text-slate-900">Buying History</h1>
 
-      {(buyerLoading || loading) && <p className="text-sm text-slate-500">Loading…</p>}
+      {loading && <p className="text-sm text-slate-500">Loading…</p>}
       {error && <p className="text-sm text-red-600">{error.message}</p>}
 
       {orders && orders.length === 0 && (

@@ -40,6 +40,19 @@ async def get_cart_by_mandate(
     return ApiSuccessResponse(data=cart)
 
 
+@router.get("/by-user/{user_id}", response_model=ApiSuccessResponse[CartResponse | None])
+async def get_open_cart_for_user(
+    user_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
+) -> ApiSuccessResponse[CartResponse | None]:
+    """
+    Fetch a logged-in buyer's current OPEN cart, or null if they have none
+    right now. Lets the storefront discover a cart Claude created via MCP
+    under this same user_id (plan.md Section 19 login).
+    """
+    cart = await carts_service.get_open_cart_for_user(session, user_id)
+    return ApiSuccessResponse(data=cart)
+
+
 @router.post("", response_model=ApiSuccessResponse[CartResponse])
 async def create_cart(
     body: CreateCartRequest, session: AsyncSession = Depends(get_db_session)

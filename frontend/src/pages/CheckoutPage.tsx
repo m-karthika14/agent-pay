@@ -21,7 +21,7 @@ type Phase = 'review' | 'authorizing' | 'authorized' | 'paying' | 'failed'
  */
 export function CheckoutPage() {
   const { cart, clearCart } = useCart()
-  const { email, name, loading: buyerLoading, error: buyerError } = useBuyer()
+  const { email, name } = useBuyer()
   const navigate = useNavigate()
 
   const [phase, setPhase] = useState<Phase>('review')
@@ -50,7 +50,7 @@ export function CheckoutPage() {
       const productNames = [...new Set(cart.items.map((item) => item.product_name))]
       const mandate = await createMandate({
         user_email: email,
-        user_name: name,
+        user_name: name ?? undefined,
         merchant_id: cart.merchant_id,
         currency: cart.currency,
         max_amount_minor: cart.subtotal_minor,
@@ -83,7 +83,7 @@ export function CheckoutPage() {
         razorpayOrderId: session.razorpay_order_id,
         amountMinor: session.amount_minor,
         currency: session.currency,
-        buyerName: name,
+        buyerName: name ?? 'Storefront Buyer',
         buyerEmail: email ?? '',
         onSuccess: () => {
           clearCart()
@@ -145,13 +145,12 @@ export function CheckoutPage() {
           </label>
           <button
             type="button"
-            disabled={buyerLoading || !email}
+            disabled={!email}
             onClick={() => void handleAuthorize()}
             className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-40"
           >
-            {buyerLoading ? 'Preparing your session…' : 'Authorize purchase'}
+            Authorize purchase
           </button>
-          {buyerError && <p className="text-sm text-red-600">Could not start your session: {buyerError.message}</p>}
         </div>
       )}
 

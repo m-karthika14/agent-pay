@@ -170,6 +170,37 @@ async def get_cart_by_mandate(session: AsyncSession, mandate_row_id: uuid.UUID) 
     return await to_cart_response(session, cart)
 
 
+async def get_open_cart_for_user(session: AsyncSession, user_id: uuid.UUID) -> CartResponse | None:
+    """
+    Fetch a user's current OPEN cart, if any -- the most recently created
+    one, in the unlikely event more than one somehow exists.
+
+    Lets the storefront discover a cart Claude created via MCP under this
+    same user_id (plan.md Section 19 login): a fresh browser session has no
+    cart_id of its own stored locally, so without this lookup it would
+    never find a cart it didn't create itself.
+
+    Args:
+        session: Active AsyncSession.
+        user_id: The buyer's internal User.id.
+
+    Returns:
+        The cart, or None if this user has no OPEN cart right now -- a
+        normal state (nothing added yet, or their last cart already froze),
+        not an error.
+    """
+    result = await session.execute(
+        select(Cart)
+        .where(Cart.user_id == user_id, Cart.status == CART_STATUS_OPEN)
+        .order_by(Cart.created_at.desc())
+        .limit(1)
+    )
+    cart = result.scalars().first()
+    if cart is None:
+        return None
+    return await to_cart_response(session, cart)
+
+
 async def _add_or_merge_item(session: AsyncSession, cart: Cart, product: Product, quantity: int) -> None:
     """
     Insert a new line item for `product`/`quantity`, or merge into an

@@ -1,17 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ProductImage } from '../components/ProductImage'
-import { useBuyer } from '../context/BuyerContext'
 import { useCart } from '../context/CartContext'
 import { useProduct } from '../hooks/useProducts'
 import { formatCurrency } from '../lib/formatCurrency'
 
-/** Product detail page: price, category, stock, delivery, return policy, and add-to-cart. */
+/** Product detail page: price, category, stock, delivery, return policy, and add-to-cart. Wrapped in RequireBuyer, so a logged-in buyer is guaranteed. */
 export function ProductPage() {
   const { productId } = useParams<{ productId: string }>()
   const { product, inventory } = useProduct(productId)
   const { addItem, loading: cartLoading } = useCart()
-  const { userId, loading: buyerLoading, error: buyerError } = useBuyer()
   const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<Error | null>(null)
@@ -66,14 +64,13 @@ export function ProductPage() {
 
         <button
           type="button"
-          disabled={!inStock || adding || cartLoading || buyerLoading || !userId}
+          disabled={!inStock || adding || cartLoading}
           onClick={handleAddToCart}
           className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-40"
         >
-          {!inStock ? 'Out of stock' : buyerLoading ? 'Preparing your session…' : adding ? 'Adding…' : 'Add to cart'}
+          {!inStock ? 'Out of stock' : adding ? 'Adding…' : 'Add to cart'}
         </button>
         {addError && <p className="text-sm text-red-600">{addError.message}</p>}
-        {buyerError && <p className="text-sm text-red-600">Could not start your session: {buyerError.message}</p>}
       </div>
     </div>
   )

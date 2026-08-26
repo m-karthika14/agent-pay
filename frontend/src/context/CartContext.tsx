@@ -35,20 +35,37 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
+    if (!userId) return
     const cartId = localStorage.getItem(CART_ID_KEY)
-    if (!cartId) return
+    if (cartId) {
+      setLoading(true)
+      cartApi
+        .getCart(cartId)
+        .then((result) => setCart(result))
+        .catch(() => {
+          // The stored cart is gone or no longer usable (e.g. already frozen
+          // by a completed checkout) -- drop it and let the next addItem()
+          // start a fresh one.
+          localStorage.removeItem(CART_ID_KEY)
+        })
+        .finally(() => setLoading(false))
+      return
+    }
+    // No cart_id known to this browser yet -- check whether this user
+    // already has an OPEN cart from elsewhere (e.g. one Claude created via
+    // MCP under the same user_id), so logging in surfaces it automatically.
     setLoading(true)
     cartApi
-      .getCart(cartId)
-      .then((result) => setCart(result))
-      .catch(() => {
-        // The stored cart is gone or no longer usable (e.g. already frozen
-        // by a completed checkout) -- drop it and let the next addItem()
-        // start a fresh one.
-        localStorage.removeItem(CART_ID_KEY)
+      .getOpenCartForUser(userId)
+      .then((result) => {
+        if (result) {
+          localStorage.setItem(CART_ID_KEY, result.cart_id)
+          setCart(result)
+        }
       })
+      .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [userId])
 
   const addItem = useCallback(
     async (productId: string, merchantId: string, quantity = 1) => {

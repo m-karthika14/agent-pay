@@ -1,11 +1,12 @@
 """
-Purpose: Pydantic schemas for the demo user identity endpoint.
+Purpose: Pydantic schemas for the demo user identity/login endpoints.
 
-The storefront has no real authentication (plan.md Section 19 is explicit
-that the buyer-facing UI is a demo). Email is the lightweight identity key:
-POST /api/users resolves it to a stable user_id, idempotently creating the
-row on first sight, so the storefront can create carts (which require a
-real User row) before any mandate exists.
+Email is the natural identity key throughout (plan.md Section 19): POST
+/api/users idempotently resolves it to a stable user_id with no password
+(still how Claude/MCP identifies a buyer), while POST /api/auth/login adds
+a real password check on top of that same User row -- see
+app.auth.service.login_or_claim for why a password-less row created via
+/api/users can still log in (its password gets claimed on first login).
 """
 from pydantic import BaseModel, Field
 
@@ -23,3 +24,11 @@ class UserResponse(BaseModel):
     user_id: str
     email: str
     name: str
+
+
+class LoginRequest(BaseModel):
+    """Request body for POST /api/auth/login."""
+
+    email: str
+    password: str = Field(min_length=1)
+    name: str = Field(default="Storefront Buyer", description="Used only if this email has never signed up before.")

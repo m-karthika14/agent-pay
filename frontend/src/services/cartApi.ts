@@ -19,6 +19,11 @@ export function getCartByMandate(mandateId: string): Promise<CartResponse | null
   return apiGet<CartResponse | null>(`/api/carts/by-mandate/${mandateId}`)
 }
 
+/** Fetch a user's current OPEN cart, or null if they have none -- how the browser discovers a cart Claude created via MCP under the same user_id. */
+export function getOpenCartForUser(userId: string): Promise<CartResponse | null> {
+  return apiGet<CartResponse | null>(`/api/carts/by-user/${userId}`)
+}
+
 /** Add a product to an OPEN cart (merges into an existing line if already present). */
 export function addCartItem(cartId: string, productId: string, quantity: number): Promise<CartResponse> {
   return apiPost<CartResponse>(`/api/carts/${cartId}/items`, { product_id: productId, quantity })

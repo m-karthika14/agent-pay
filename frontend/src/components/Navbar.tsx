@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useBuyer } from '../context/BuyerContext'
 import { useCart } from '../context/CartContext'
 
 const SHOP_TABS = [
@@ -18,6 +19,7 @@ const TAB_CLASS = ({ isActive }: { isActive: boolean }) =>
 /** Top navigation bar: the UrbanNest storefront's core shopping tabs, plus the live AI Activity panel and Merchant Console. */
 export function Navbar() {
   const { itemCount } = useCart()
+  const { userId, name, logout } = useBuyer()
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -41,6 +43,14 @@ export function Navbar() {
           <NavLink to="/console" className={UTILITY_LINK_CLASS}>
             Merchant Console
           </NavLink>
+          {userId && (
+            <>
+              <span className="text-sm text-slate-600">Hello, {name} 👋</span>
+              <button type="button" onClick={logout} className="text-sm font-medium text-slate-500 hover:text-slate-700">
+                Log out
+              </button>
+            </>
+          )}
         </nav>
       </div>
     </header>

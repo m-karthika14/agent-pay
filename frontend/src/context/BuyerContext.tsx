@@ -1,76 +1,92 @@
 /**
- * Demo buyer identity for the storefront (plan.md Section 19 — no real
- * auth; email is the lightweight identity key). On first visit a random
- * demo email/name is generated and persisted to localStorage; on every
- * visit it's resolved to a real backend user_id via POST /api/users
- * (idempotent get-or-create), since carts require an existing User row.
+ * Buyer identity for the storefront (plan.md Section 19), backed by a real
+ * login (POST /api/auth/login) rather than an auto-generated per-device
+ * identity.
+ *
+ * Why this matters: Claude (via MCP) and the browser must resolve to the
+ * exact same User row for a cart Claude creates to actually show up in the
+ * browser's own cart page. The previous auto-generated-random-email
+ * approach could never match whatever user_id a human had separately
+ * handed to Claude in conversation -- logging in as that same email (or
+ * claiming a password for a user_id Claude/MCP already created via
+ * POST /api/users, see app.auth.service.login_or_claim) fixes that.
  */
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
-import { getOrCreateUser } from '../services/userApi'
+import { login as loginRequest } from '../services/userApi'
 
+const USER_ID_KEY = 'agentpay_buyer_user_id'
 const EMAIL_KEY = 'agentpay_buyer_email'
 const NAME_KEY = 'agentpay_buyer_name'
-const DEFAULT_NAME = 'Storefront Buyer'
+const CART_ID_KEY = 'agentpay_cart_id'
 
 interface BuyerContextValue {
   userId: string | null
   email: string | null
-  name: string
+  name: string | null
   loading: boolean
   error: Error | null
+  login: (email: string, password: string, name?: string) => Promise<void>
+  logout: () => void
 }
 
 const BuyerContext = createContext<BuyerContextValue | null>(null)
 
-function loadOrCreateIdentity(): { email: string; name: string } {
-  let email = localStorage.getItem(EMAIL_KEY)
-  let name = localStorage.getItem(NAME_KEY)
-  if (!email) {
-    email = `buyer-${Math.random().toString(36).slice(2, 10)}@urbannest.demo`
-    localStorage.setItem(EMAIL_KEY, email)
-  }
-  if (!name) {
-    name = DEFAULT_NAME
-    localStorage.setItem(NAME_KEY, name)
-  }
-  return { email, name }
+interface StoredIdentity {
+  userId: string | null
+  email: string | null
+  name: string | null
 }
 
-/** Provides the resolved demo buyer identity to the storefront's component tree. */
+function loadStoredIdentity(): StoredIdentity {
+  return {
+    userId: localStorage.getItem(USER_ID_KEY),
+    email: localStorage.getItem(EMAIL_KEY),
+    name: localStorage.getItem(NAME_KEY),
+  }
+}
+
+/** Provides the logged-in buyer identity to the storefront's component tree. */
 export function BuyerProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Omit<BuyerContextValue, 'email' | 'name'> & { email: string; name: string }>(
-    () => {
-      const { email, name } = loadOrCreateIdentity()
-      return { userId: null, email, name, loading: true, error: null }
-    },
-  )
+  const [identity, setIdentity] = useState<StoredIdentity>(loadStoredIdentity)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    getOrCreateUser(state.email, state.name)
-      .then((user) => {
-        if (!cancelled) setState((prev) => ({ ...prev, userId: user.user_id, loading: false }))
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
-            loading: false,
-            error: error instanceof Error ? error : new Error(String(error)),
-          }))
-        }
-      })
-    return () => {
-      cancelled = true
+  async function login(email: string, password: string, name?: string): Promise<void> {
+    setLoading(true)
+    setError(null)
+    try {
+      const user = await loginRequest(email, password, name)
+      localStorage.setItem(USER_ID_KEY, user.user_id)
+      localStorage.setItem(EMAIL_KEY, user.email)
+      localStorage.setItem(NAME_KEY, user.name)
+      setIdentity({ userId: user.user_id, email: user.email, name: user.name })
+    } catch (err) {
+      const asError = err instanceof Error ? err : new Error(String(err))
+      setError(asError)
+      throw asError
+    } finally {
+      setLoading(false)
     }
-    // Runs once on mount: the demo identity is fixed for the browser session.
-  }, [])
+  }
 
-  return <BuyerContext.Provider value={state}>{children}</BuyerContext.Provider>
+  function logout(): void {
+    localStorage.removeItem(USER_ID_KEY)
+    localStorage.removeItem(EMAIL_KEY)
+    localStorage.removeItem(NAME_KEY)
+    // The cart belongs to whichever user was logged in -- switching
+    // identity must not let the next login silently pick up a stranger's
+    // in-progress cart.
+    localStorage.removeItem(CART_ID_KEY)
+    window.location.href = '/login'
+  }
+
+  return (
+    <BuyerContext.Provider value={{ ...identity, loading, error, login, logout }}>{children}</BuyerContext.Provider>
+  )
 }
 
-/** Read the resolved demo buyer identity. Must be used within a BuyerProvider. */
+/** Read the logged-in buyer identity. Must be used within a BuyerProvider. */
 export function useBuyer(): BuyerContextValue {
   const ctx = useContext(BuyerContext)
   if (!ctx) throw new Error('useBuyer must be used within a BuyerProvider')

@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import (
     audit,
+    auth,
     carts,
     checkout,
     console,
@@ -82,6 +83,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(products.router)
 app.include_router(users.router)
+app.include_router(auth.router)
 app.include_router(carts.router)
 app.include_router(mandates.router)
 app.include_router(checkout.router)
