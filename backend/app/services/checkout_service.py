@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.merchant.runner import run_merchant_agent
 from app.audit.service import append_event
+from app.authorization.service import get_approved_mandate_id_for_cart
 from app.carts import service as carts_service
 from app.carts.freeze import freeze_cart
 from app.carts.service import to_cart_response
@@ -58,13 +59,57 @@ async def _load_cart_or_raise(session: AsyncSession, cart_id: uuid.UUID) -> Cart
     return cart
 
 
+async def _resolve_mandate_id(session: AsyncSession, cart_id: uuid.UUID) -> str:
+    """
+    Resolve which mandate_id to use for a request_checkout() call that
+    omitted one (plan.md Phase 2.1 -- Claude's cart-only checkout call).
+
+    An already-FROZEN cart always reuses whatever mandate it was frozen
+    under -- never re-resolved from app.authorization.service, since a
+    *newer* APPROVED authorization request created after freezing must never
+    silently redirect a duplicate-detection call (policy.checks.
+    check_idempotency always BLOCKs a second request_checkout() on a frozen
+    cart, regardless of mandate_id) to a different mandate. A still-OPEN
+    cart resolves to its most recently APPROVED authorization request, if
+    any.
+
+    Raises:
+        NotFoundError: If the cart does not exist.
+        ValidationError: NO_APPROVED_AUTHORIZATION if neither source has a
+            mandate yet.
+    """
+    cart = await _load_cart_or_raise(session, cart_id)
+    if cart.mandate_id is not None:
+        mandate_row = await session.get(Mandate, cart.mandate_id)
+        if mandate_row is not None:
+            return mandate_row.mandate_id
+
+    resolved = await get_approved_mandate_id_for_cart(session, cart_id)
+    if resolved is None:
+        raise ValidationError(
+            "NO_APPROVED_AUTHORIZATION",
+            f"No mandate_id given and no approved authorization request exists yet for cart '{cart_id}' -- "
+            "call check_authorization_status() and wait for APPROVED, or pass a mandate_id directly.",
+        )
+    return resolved
+
+
 async def request_checkout(
-    session: AsyncSession, cart_id: uuid.UUID, mandate_id: str, *, intent_gate_enabled: bool = True
+    session: AsyncSession, cart_id: uuid.UUID, mandate_id: str | None = None, *, intent_gate_enabled: bool = True
 ) -> CheckoutResponse:
     """
     Run AgentPay's deterministic checkout boundary for a cart.
 
     Order of operations (plan.md Section 15):
+        0. If mandate_id is omitted (plan.md Phase 2.1 -- Claude's
+           cart-only checkout call), resolve it: an already-FROZEN cart
+           reuses whatever mandate it was frozen under (never re-resolved
+           from a newer authorization request -- see _resolve_mandate_id's
+           docstring); a still-OPEN cart resolves to its most recently
+           APPROVED authorization request, if any. Raises
+           NO_APPROVED_AUTHORIZATION if neither source has one. This is
+           purely a lookup of *which* mandate_id to use -- every check below
+           runs in full afterward regardless of how mandate_id was obtained.
         1. Load mandate (by business mandate_id).
         2-5. Run hard checks: mandate validity, category, inventory
              (app.policy.engine.run_hard_checks) -- or, if the cart was
@@ -86,7 +131,9 @@ async def request_checkout(
     Args:
         session: Active AsyncSession.
         cart_id: The cart to check out.
-        mandate_id: Business-facing mandate_id authorizing this cart.
+        mandate_id: Business-facing mandate_id authorizing this cart, or
+            None to resolve it from the cart's own state (plan.md Phase
+            2.1) -- see step 0 above.
         intent_gate_enabled: Whether a hard-check-passed merchant proposal
             must also pass the Intent Gate before being applied. Defaults
             to True (the real, production behavior). This exists ONLY for
@@ -110,9 +157,15 @@ async def request_checkout(
             fails. The exception's reason_code is the specific failing
             check's code (e.g. MANDATE_AMOUNT_EXCEEDED,
             MANDATE_CATEGORY_FORBIDDEN, INVENTORY_INVALID,
-            CART_HASH_MISMATCH, IDEMPOTENCY_DUPLICATE). The block is always
-            audited before this is raised.
+            CART_HASH_MISMATCH, IDEMPOTENCY_DUPLICATE,
+            NO_APPROVED_AUTHORIZATION -- mandate_id omitted and this cart has
+            no mandate of its own yet). The block is always audited before
+            this is raised, except NO_APPROVED_AUTHORIZATION, which can't
+            yet be tied to any mandate to audit against.
     """
+    if mandate_id is None:
+        mandate_id = await _resolve_mandate_id(session, cart_id)
+
     mandate_row = await get_mandate_by_business_id(session, mandate_id)
     if mandate_row is None:
         raise NotFoundError("MANDATE_NOT_FOUND", f"No mandate with id '{mandate_id}'.")

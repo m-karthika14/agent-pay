@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { LiveConversation } from '../components/LiveConversation'
 import { StatusBadge } from '../components/StatusBadge'
+import { useMerchants } from '../hooks/useMerchants'
 import { usePolling } from '../hooks/usePolling'
 import { getMandateAuditEvents } from '../services/auditApi'
 import { getCartByMandate } from '../services/cartApi'
 import { getMandate } from '../services/mandateApi'
 import { formatCurrency } from '../lib/formatCurrency'
+import { getMerchantTheme } from '../lib/merchantTheme'
 
 /**
  * Live "AI Activity" panel (plan.md storefront spec): paste a mandate_id --
@@ -32,6 +34,9 @@ export function AgentActivityPage() {
     enabled: watching !== null,
     intervalMs: 2000,
   })
+  const { data: merchants } = useMerchants()
+  const merchant = mandate.data ? merchants?.find((m) => m.merchant_id === mandate.data!.merchant_id) : undefined
+  const theme = getMerchantTheme(merchant?.slug)
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -68,7 +73,14 @@ export function AgentActivityPage() {
           {mandate.data && (
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-700">Mandate {mandate.data.mandate_id}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-slate-700">Mandate {mandate.data.mandate_id}</h2>
+                  {merchant && (
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium text-white ${theme.primaryButton}`}>
+                      {merchant.name}
+                    </span>
+                  )}
+                </div>
                 <StatusBadge status={mandate.data.status} />
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">

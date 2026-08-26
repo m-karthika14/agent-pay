@@ -3,8 +3,10 @@ import { DecisionTrace } from '../components/DecisionTrace'
 import { MandateCard } from '../components/MandateCard'
 import { PaymentStatus } from '../components/PaymentStatus'
 import { StatusBadge } from '../components/StatusBadge'
+import { useMerchants } from '../hooks/useMerchants'
 import { useTransaction } from '../hooks/useTransaction'
 import { formatCurrency } from '../lib/formatCurrency'
+import { getMerchantTheme } from '../lib/merchantTheme'
 
 /**
  * One transaction's complete view (plan.md Section 19.2/24 "Transaction
@@ -14,10 +16,14 @@ import { formatCurrency } from '../lib/formatCurrency'
 export function TransactionPage() {
   const { transactionId } = useParams<{ transactionId: string }>()
   const { data, loading, error } = useTransaction(transactionId ?? '')
+  const { data: merchants } = useMerchants()
 
   if (loading) return <p className="text-sm text-slate-500">Loading…</p>
   if (error) return <p className="text-sm text-red-600">{error.message}</p>
   if (!data) return null
+
+  const merchant = merchants?.find((m) => m.merchant_id === data.cart.merchant_id)
+  const theme = getMerchantTheme(merchant?.slug)
 
   return (
     <div className="space-y-6">
@@ -25,7 +31,14 @@ export function TransactionPage() {
         <Link to="/console" className="text-sm text-slate-500 hover:text-slate-700">
           ← Back to console
         </Link>
-        <h1 className="mt-1 text-lg font-semibold text-slate-900">Transaction {data.transaction.transaction_id}</h1>
+        <div className="mt-1 flex items-center gap-2">
+          <h1 className="text-lg font-semibold text-slate-900">Transaction {data.transaction.transaction_id}</h1>
+          {merchant && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium text-white ${theme.primaryButton}`}>
+              {merchant.name}
+            </span>
+          )}
+        </div>
         <p className="text-sm text-slate-500">
           Buyer: {data.buyer.name} ({data.buyer.email})
         </p>

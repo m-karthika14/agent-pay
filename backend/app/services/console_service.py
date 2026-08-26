@@ -14,7 +14,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_event import AuditEvent
+from app.db.models.cart import Cart
 from app.db.models.mandate import Mandate
+from app.db.models.merchant import Merchant
 from app.db.models.order import Order
 from app.db.models.transaction import Transaction
 from app.schemas.console import ConsoleMetricsResponse, ConsoleSummaryResponse, RecentTransactionSummary
@@ -48,8 +50,10 @@ async def get_summary(session: AsyncSession) -> ConsoleSummaryResponse:
     total_audit_events = total_events_result.scalar_one()
 
     recent_result = await session.execute(
-        select(Transaction, Order)
+        select(Transaction, Order, Merchant)
         .join(Order, Order.id == Transaction.order_id)
+        .join(Cart, Cart.id == Order.cart_id)
+        .join(Merchant, Merchant.id == Cart.merchant_id)
         .order_by(Transaction.created_at.desc())
         .limit(10)
     )
@@ -60,9 +64,11 @@ async def get_summary(session: AsyncSession) -> ConsoleSummaryResponse:
             status=transaction.status,
             amount_minor=order.amount_minor,
             currency=order.currency,
+            merchant_name=merchant.name,
+            merchant_slug=merchant.slug,
             created_at=transaction.created_at,
         )
-        for transaction, order in recent_result.all()
+        for transaction, order, merchant in recent_result.all()
     ]
 
     return ConsoleSummaryResponse(

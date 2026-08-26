@@ -52,3 +52,10 @@ PROPOSAL_GATEWAY_ERROR = "PROPOSAL_GATEWAY_ERROR"
 # code is for app.policy.checks.check_mandate_not_reused_by_another_cart,
 # which closes that window at request_checkout() time instead.
 MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART = "MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART"
+
+# --- Cart-owned mandate resolution (Phase 2.1) ---
+# request_checkout() can be called with no mandate_id, resolving it from the
+# cart's own state (already-frozen -> its recorded mandate; still OPEN -> the
+# most recent APPROVED app.db.models.authorization_request.AuthorizationRequest
+# for that cart). This code fires only when neither source has one.
+NO_APPROVED_AUTHORIZATION = "NO_APPROVED_AUTHORIZATION"

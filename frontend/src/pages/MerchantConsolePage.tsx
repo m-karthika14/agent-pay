@@ -5,6 +5,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { useConsoleEvents, useConsoleMetrics, useConsoleSummary } from '../hooks/useConsole'
 import { formatCurrency } from '../lib/formatCurrency'
 import { formatDate } from '../lib/formatDate'
+import { getMerchantTheme } from '../lib/merchantTheme'
 
 /**
  * The Merchant Console's overview page (plan.md Section 19.2): aggregate
@@ -53,23 +54,31 @@ export function MerchantConsolePage() {
         {summary.data && summary.data.recent_transactions.length > 0 && (
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
             <ul className="divide-y divide-slate-100">
-              {summary.data.recent_transactions.map((row) => (
-                <li key={row.transaction_id}>
-                  <Link
-                    to={`/console/transactions/${row.transaction_id}`}
-                    className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
-                  >
-                    <div>
-                      <p className="font-mono text-xs text-slate-500">{row.transaction_id}</p>
-                      <p className="text-xs text-slate-400">{formatDate(row.created_at)}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-slate-800">{formatCurrency(row.amount_minor, row.currency)}</span>
-                      <StatusBadge status={row.status} />
-                    </div>
-                  </Link>
-                </li>
-              ))}
+              {summary.data.recent_transactions.map((row) => {
+                const theme = getMerchantTheme(row.merchant_slug)
+                return (
+                  <li key={row.transaction_id}>
+                    <Link
+                      to={`/console/transactions/${row.transaction_id}`}
+                      className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium text-white ${theme.primaryButton}`}>
+                            {row.merchant_name}
+                          </span>
+                          <p className="font-mono text-xs text-slate-500">{row.transaction_id}</p>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">{formatDate(row.created_at)}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium text-slate-800">{formatCurrency(row.amount_minor, row.currency)}</span>
+                        <StatusBadge status={row.status} />
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
             </ul>
           </div>
         )}

@@ -16,6 +16,8 @@ class RecentTransactionSummary(BaseModel):
     status: str
     amount_minor: int
     currency: str
+    merchant_name: str
+    merchant_slug: str
     created_at: datetime
 
 

@@ -11,6 +11,8 @@ export interface RecentTransactionSummary {
   status: string
   amount_minor: number
   currency: string
+  merchant_name: string
+  merchant_slug: string
   created_at: string
 }
 

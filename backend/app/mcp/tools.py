@@ -128,7 +128,7 @@ async def add_to_cart(cart_id: str, product_id: str, quantity: int) -> CartRespo
         return await carts_service.add_cart_item(session, uuid.UUID(cart_id), uuid.UUID(product_id), quantity)
 
 
-async def request_checkout(cart_id: str, mandate_id: str) -> CheckoutResponse:
+async def request_checkout(cart_id: str, mandate_id: str | None = None) -> CheckoutResponse:
     """
     Run AgentPay's deterministic authorization checks against the cart and,
     if they all pass, freeze it so it can be purchased.
@@ -143,8 +143,12 @@ async def request_checkout(cart_id: str, mandate_id: str) -> CheckoutResponse:
 
     Args:
         cart_id: The cart to check out.
-        mandate_id: The signed mandate id authorizing this purchase (the
-            user's spending/intent authorization -- not something you choose).
+        mandate_id: The signed mandate id authorizing this purchase, if a
+            human gave you one directly. Omit this entirely if you got here
+            via request_authorization()/check_authorization_status() -- once
+            that reports status "APPROVED", AgentPay already knows which
+            mandate authorizes this cart and resolves it for you. Never
+            invent or guess a mandate_id yourself.
     """
     async with mcp_db_session() as session:
         return await checkout_service.request_checkout(session, uuid.UUID(cart_id), mandate_id)

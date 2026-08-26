@@ -243,6 +243,39 @@ async def approve_authorization_request(
     return await _to_response_with_mandate(session, row)
 
 
+async def get_approved_mandate_id_for_cart(session: AsyncSession, cart_id: uuid.UUID) -> str | None:
+    """
+    Resolve the business mandate_id of the most recently approved
+    authorization request for a still-OPEN cart, for
+    app.services.checkout_service.request_checkout()'s cart-only call form
+    (plan.md Phase 2.1).
+
+    A cart can accumulate more than one APPROVED request over its lifetime
+    (e.g. Claude requests again after an earlier approval, still OPEN) --
+    "most recent" (by decided_at) is the deterministic tie-break.
+
+    Args:
+        session: Active AsyncSession.
+        cart_id: The cart to resolve a mandate for.
+
+    Returns:
+        The business mandate_id (e.g. "M-001"), or None if this cart has no
+        APPROVED authorization request yet -- a normal state (still shopping,
+        still PENDING, or rejected), not an error.
+    """
+    result = await session.execute(
+        select(AuthorizationRequest)
+        .where(AuthorizationRequest.cart_id == cart_id, AuthorizationRequest.status == AuthorizationRequestStatus.APPROVED)
+        .order_by(AuthorizationRequest.decided_at.desc())
+        .limit(1)
+    )
+    row = result.scalar_one_or_none()
+    if row is None or row.resulting_mandate_id is None:
+        return None
+    mandate_row = await session.get(Mandate, row.resulting_mandate_id)
+    return mandate_row.mandate_id if mandate_row else None
+
+
 async def reject_authorization_request(session: AsyncSession, request_id: uuid.UUID) -> AuthorizationRequestResponse:
     """
     Reject a PENDING request. No mandate is created.

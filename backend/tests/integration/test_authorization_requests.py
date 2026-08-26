@@ -12,6 +12,7 @@ Every test uses its own isolated, throwaway merchant/product/user, matching
 tests/integration/test_multi_merchant.py's established convention.
 """
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from app.authorization.service import (
     approve_authorization_request,
@@ -26,9 +27,10 @@ from app.db.models.merchant import Merchant
 from app.db.models.product import Product
 from app.db.models.user import User
 from app.db.session import get_session_factory
-from app.mandates.service import get_mandate_by_business_id, to_signed_mandate
+from app.mandates.service import create_mandate, get_mandate_by_business_id, to_signed_mandate
 from app.schemas.authorization import ApproveAuthorizationRequest, RequestAuthorizationInput
 from app.schemas.common import AgentPayError
+from app.schemas.mandate import MandateIntent, MandatePayload
 from app.security.mandate_verifier import verify_mandate
 from app.services.audit_service import get_events_for_user
 from app.services.checkout_service import request_checkout
@@ -275,3 +277,137 @@ async def test_approve_with_lowered_cap_enforces_the_edit() -> None:
 
     assert raised is not None
     assert raised.reason_code == "MANDATE_AMOUNT_EXCEEDED"
+
+
+async def test_checkout_with_no_mandate_id_resolves_the_approved_one() -> None:
+    """Phase 2.1: request_checkout(cart_id) with no mandate_id, after an as-is approval, succeeds and freezes the cart."""
+    merchant, product, user = await _create_merchant_with_product(price_minor=200_000)
+    cart_id = await _create_cart_with_item(merchant, product, user)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        terms = _suggested_terms(cart_id, product, max_amount_minor=300_000)
+        request = await create_authorization_request(session, terms)
+        await session.commit()
+
+        approved = await approve_authorization_request(
+            session,
+            uuid.UUID(request.request_id),
+            ApproveAuthorizationRequest(
+                product_type=product.name, max_amount_minor=300_000, allowed_categories=[product.category]
+            ),
+        )
+        await session.commit()
+
+        checkout_result = await request_checkout(session, cart_id)
+        await session.commit()
+
+    assert checkout_result.cart.status == "FROZEN"
+    assert checkout_result.cart.mandate_id == approved.resulting_mandate_id
+
+
+async def test_checkout_with_no_mandate_id_and_no_approval_is_rejected() -> None:
+    """Phase 2.1: request_checkout(cart_id) before any approval (or with none at all) fails loud, not silently."""
+    merchant, product, user = await _create_merchant_with_product()
+    cart_id = await _create_cart_with_item(merchant, product, user)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        # No authorization request at all yet.
+        try:
+            await request_checkout(session, cart_id)
+            raised = None
+        except AgentPayError as exc:
+            raised = exc
+    assert raised is not None
+    assert raised.reason_code == "NO_APPROVED_AUTHORIZATION"
+
+    async with factory() as session:
+        # A PENDING (not yet APPROVED) request also isn't enough.
+        terms = _suggested_terms(cart_id, product, max_amount_minor=300_000)
+        await create_authorization_request(session, terms)
+        await session.commit()
+
+        try:
+            await request_checkout(session, cart_id)
+            raised = None
+        except AgentPayError as exc:
+            raised = exc
+
+    assert raised is not None
+    assert raised.reason_code == "NO_APPROVED_AUTHORIZATION"
+
+
+async def test_checkout_with_no_mandate_id_reuses_frozen_carts_own_mandate_on_retry() -> None:
+    """
+    Phase 2.1's safety property: once a cart is FROZEN, a second cart-only
+    request_checkout() call must reuse that SAME mandate (via cart.mandate_id)
+    and hit the existing IDEMPOTENCY_DUPLICATE block -- never silently
+    re-resolve to some other APPROVED request for the same cart.
+    """
+    merchant, product, user = await _create_merchant_with_product(price_minor=200_000)
+    cart_id = await _create_cart_with_item(merchant, product, user)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        terms = _suggested_terms(cart_id, product, max_amount_minor=300_000)
+        request = await create_authorization_request(session, terms)
+        await session.commit()
+
+        approved = await approve_authorization_request(
+            session,
+            uuid.UUID(request.request_id),
+            ApproveAuthorizationRequest(
+                product_type=product.name, max_amount_minor=300_000, allowed_categories=[product.category]
+            ),
+        )
+        await session.commit()
+
+        await request_checkout(session, cart_id)
+        await session.commit()
+
+        try:
+            await request_checkout(session, cart_id)
+            raised = None
+        except AgentPayError as exc:
+            raised = exc
+
+    assert raised is not None
+    assert raised.reason_code == "IDEMPOTENCY_DUPLICATE"
+    assert approved.resulting_mandate_id is not None  # sanity: this test actually exercised the approved path
+
+
+async def test_authorize_agent_first_flow_still_works_with_explicit_mandate_id() -> None:
+    """
+    Confirms the pre-existing, still-supported flow: a human authorizes via
+    /authorize-agent BEFORE any cart exists (so no AuthorizationRequest row
+    is ever created), and Claude passes that mandate_id explicitly --
+    exactly as it always could, unaffected by mandate_id becoming optional.
+    """
+    merchant, product, user = await _create_merchant_with_product(price_minor=200_000)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        payload = MandatePayload(
+            mandate_id=f"M-authfirst-{uuid.uuid4().hex[:8]}",
+            merchant_id=str(merchant.id),
+            currency="INR",
+            max_amount=300_000,
+            allowed_categories=[product.category],
+            allow_addons=False,
+            delivery_requirement="under_3_days",
+            single_use=True,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+            intent=MandateIntent(product_type=product.name),
+        )
+        await create_mandate(session, payload, user.id, merchant.id)
+        await session.commit()
+
+    cart_id = await _create_cart_with_item(merchant, product, user)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        checkout_result = await request_checkout(session, cart_id, payload.mandate_id)
+        await session.commit()
+
+    assert checkout_result.cart.status == "FROZEN"
