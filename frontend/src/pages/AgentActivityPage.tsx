@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ActivityTimeline } from '../components/ActivityTimeline'
+import { LiveConversation } from '../components/LiveConversation'
 import { StatusBadge } from '../components/StatusBadge'
 import { usePolling } from '../hooks/usePolling'
 import { getMandateAuditEvents } from '../services/auditApi'
@@ -117,14 +117,11 @@ export function AgentActivityPage() {
             )
           })()}
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">Activity</h2>
-            {activity.loading && !activity.data && <p className="text-sm text-slate-500">Loading…</p>}
-            {activity.data && activity.data.length === 0 && (
-              <p className="text-sm text-slate-500">No activity recorded yet for this mandate.</p>
-            )}
-            {activity.data && activity.data.length > 0 && <ActivityTimeline events={activity.data} />}
-          </div>
+          {activity.loading && !activity.data && <p className="text-sm text-slate-500">Loading…</p>}
+          {activity.data && activity.data.length === 0 && (
+            <p className="text-sm text-slate-500">No activity recorded yet for this mandate.</p>
+          )}
+          {activity.data && activity.data.length > 0 && <LiveConversation events={activity.data} cart={cart.data} />}
         </div>
       )}
     </div>

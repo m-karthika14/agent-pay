@@ -13,8 +13,10 @@ live database.
 import uuid
 from datetime import datetime
 
+from typing import Any
+
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, String, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -50,6 +52,12 @@ class AuditEvent(Base):
     # actor taxonomy is finalized when those components are built.
     actor_type: Mapped[str] = mapped_column(String(50), nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Added for the storefront's expandable "why" evidence view: the exact
+    # payload the hash above was computed over, stored alongside it rather
+    # than instead of it (plan.md Section 8.10's original "hash only, never
+    # the raw payload" design). Nullable so historic rows (recorded before
+    # this column existed) simply have no expandable evidence, not an error.
+    payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     previous_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     event_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     decision: Mapped[str | None] = mapped_column(String(50), nullable=True)

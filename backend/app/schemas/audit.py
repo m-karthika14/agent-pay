@@ -46,6 +46,7 @@ class AuditEventRecord(BaseModel):
     event_type: str
     actor_type: str
     payload_hash: str
+    payload: dict | None = None
     previous_hash: str | None
     event_hash: str
     decision: str | None = None

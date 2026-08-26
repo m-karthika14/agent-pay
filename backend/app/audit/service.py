@@ -90,6 +90,7 @@ async def append_event(session: AsyncSession, event: AuditEventInput) -> AuditEv
         event_type=record.event_type,
         actor_type=record.actor_type,
         payload_hash=record.payload_hash,
+        payload_json=event.payload,
         previous_hash=record.previous_hash,
         event_hash=record.event_hash,
         decision=record.decision,

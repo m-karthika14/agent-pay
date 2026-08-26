@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ActivityTimeline } from '../components/ActivityTimeline'
+import { LiveConversation } from '../components/LiveConversation'
 import { usePolling } from '../hooks/usePolling'
 import { getMandateAuditEvents } from '../services/auditApi'
 import { syncOrder } from '../services/orderApi'
@@ -70,12 +70,7 @@ export function OrderPage() {
       )}
       {syncError && <p className="text-sm text-red-600">{syncError}</p>}
 
-      {mandateId && (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">AgentPay activity</h2>
-          {events.length > 0 ? <ActivityTimeline events={events} /> : <p className="text-sm text-slate-500">Loading…</p>}
-        </div>
-      )}
+      {mandateId && (events.length > 0 ? <LiveConversation events={events} /> : <p className="text-sm text-slate-500">Loading…</p>)}
 
       <Link to="/" className="inline-block text-sm font-medium text-slate-900 underline">
         Continue shopping

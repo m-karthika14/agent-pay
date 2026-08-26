@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActivityTimeline } from '../components/ActivityTimeline'
+import { LiveConversation } from '../components/LiveConversation'
 import { useBuyer } from '../context/BuyerContext'
 import { useCart } from '../context/CartContext'
 import { getMandateAuditEvents } from '../services/auditApi'
@@ -158,16 +158,7 @@ export function CheckoutPage() {
 
       {(phase === 'authorized' || phase === 'paying') && checkoutResult && (
         <div className="space-y-4">
-          {checkoutResult.proposal && checkoutResult.proposal.status !== 'NO_PROPOSAL' && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              Merchant proposal: {checkoutResult.proposal.status}
-              {checkoutResult.proposal.reason ? ` — ${checkoutResult.proposal.reason}` : ''}
-            </div>
-          )}
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">AgentPay activity</h2>
-            {activity.data && <ActivityTimeline events={activity.data} />}
-          </div>
+          {activity.data && <LiveConversation events={activity.data} cart={checkoutResult.cart} />}
           <button
             type="button"
             disabled={phase === 'paying'}

@@ -27,6 +27,7 @@ def _to_record(event: AuditEvent) -> AuditEventRecord:
         event_type=event.event_type,
         actor_type=event.actor_type,
         payload_hash=event.payload_hash,
+        payload=event.payload_json,
         previous_hash=event.previous_hash,
         event_hash=event.event_hash,
         decision=event.decision,

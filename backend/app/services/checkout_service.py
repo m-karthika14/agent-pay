@@ -223,6 +223,20 @@ async def _run_merchant_advisory(
             block is always audited (CART_REVALIDATION_BLOCKED) before this
             is raised.
     """
+    await append_event(
+        session,
+        AuditEventInput(
+            event_type="MERCHANT_AGENT_STARTED",
+            actor_type="MERCHANT_AGENT",
+            payload={
+                "cart_id": str(cart.id),
+                "cart_subtotal_minor": cart.subtotal_minor,
+                "mandate_max_amount_minor": signed_mandate.payload.max_amount,
+                "allowed_categories": signed_mandate.payload.allowed_categories,
+            },
+            mandate_id=str(mandate_row.id),
+        ),
+    )
     agent_result = await run_merchant_agent(session, cart.id, mandate_id)
 
     if agent_result["final_status"] != ProposalStatus.PROPOSAL_ALLOWED:
@@ -300,19 +314,32 @@ async def _evaluate_proposal_via_intent_gate(
         original (already hard-check-passed) cart is left untouched for the
         caller's final re-validation pass.
     """
+    product = await session.get(Product, uuid.UUID(final_proposal["product_id"]))
+    proposal_snapshot = _proposal_snapshot(final_proposal, product)
+    mandate_snapshot = _mandate_snapshot(signed_mandate)
+
     await append_event(
         session,
         AuditEventInput(
             event_type="MERCHANT_PROPOSAL_CREATED",
             actor_type="MERCHANT_AGENT",
-            payload={"cart_id": str(cart.id), "proposal": final_proposal},
+            payload={"cart_id": str(cart.id), "proposal": final_proposal, **proposal_snapshot},
             mandate_id=str(mandate_row.id),
         ),
     )
 
     original_cart = await to_cart_response(session, cart)
-    product = await session.get(Product, uuid.UUID(final_proposal["product_id"]))
     gate_input = _build_intent_gate_input(signed_mandate, original_cart, product, final_proposal)
+
+    await append_event(
+        session,
+        AuditEventInput(
+            event_type="INTENT_CHECK_STARTED",
+            actor_type="INTENT_GATE",
+            payload={"cart_id": str(cart.id), **proposal_snapshot, **mandate_snapshot},
+            mandate_id=str(mandate_row.id),
+        ),
+    )
     intent_decision = await evaluate_intent(gate_input)
 
     if intent_decision.decision == IntentDecisionType.ALLOW:
@@ -321,7 +348,7 @@ async def _evaluate_proposal_via_intent_gate(
             AuditEventInput(
                 event_type="INTENT_GATE_ALLOWED",
                 actor_type="INTENT_GATE",
-                payload={"cart_id": str(cart.id), "confidence": intent_decision.confidence},
+                payload={"cart_id": str(cart.id), "confidence": intent_decision.confidence, **proposal_snapshot},
                 decision="ALLOW",
                 mandate_id=str(mandate_row.id),
             ),
@@ -343,7 +370,13 @@ async def _evaluate_proposal_via_intent_gate(
             AuditEventInput(
                 event_type="INTENT_GATE_BLOCKED",
                 actor_type="INTENT_GATE",
-                payload={"cart_id": str(cart.id), "confidence": intent_decision.confidence},
+                payload={
+                    "cart_id": str(cart.id),
+                    "confidence": intent_decision.confidence,
+                    "reason": intent_decision.reason,
+                    **proposal_snapshot,
+                    **mandate_snapshot,
+                },
                 decision="BLOCK",
                 reason_code=intent_decision.reason_code,
                 mandate_id=str(mandate_row.id),
@@ -354,7 +387,7 @@ async def _evaluate_proposal_via_intent_gate(
             AuditEventInput(
                 event_type="PROPOSAL_REJECTED",
                 actor_type="SYSTEM",
-                payload={"cart_id": str(cart.id), "product_id": final_proposal["product_id"]},
+                payload={"cart_id": str(cart.id), "product_id": final_proposal["product_id"], **proposal_snapshot},
                 decision="BLOCK",
                 reason_code=intent_decision.reason_code,
                 mandate_id=str(mandate_row.id),
@@ -378,7 +411,13 @@ async def _evaluate_proposal_via_intent_gate(
         AuditEventInput(
             event_type="INTENT_ESCALATED",
             actor_type="INTENT_GATE",
-            payload={"cart_id": str(cart.id), "confidence": intent_decision.confidence},
+            payload={
+                "cart_id": str(cart.id),
+                "confidence": intent_decision.confidence,
+                "reason": intent_decision.reason,
+                **proposal_snapshot,
+                **mandate_snapshot,
+            },
             decision="ESCALATE",
             reason_code=intent_decision.reason_code,
             mandate_id=str(mandate_row.id),
@@ -415,12 +454,18 @@ async def _apply_proposal_without_intent_gate(
         INTENT_GATE_* event exists for this proposal, so the audit trail
         itself makes clear it was never judged against signed intent.
     """
+    product = await session.get(Product, uuid.UUID(final_proposal["product_id"]))
     await append_event(
         session,
         AuditEventInput(
             event_type="MERCHANT_PROPOSAL_CREATED",
             actor_type="MERCHANT_AGENT",
-            payload={"cart_id": str(cart.id), "proposal": final_proposal, "intent_gate_enabled": False},
+            payload={
+                "cart_id": str(cart.id),
+                "proposal": final_proposal,
+                "intent_gate_enabled": False,
+                **_proposal_snapshot(final_proposal, product),
+            },
             mandate_id=str(mandate_row.id),
         ),
     )
@@ -457,6 +502,32 @@ async def _apply_proposal_to_cart(
             mandate_id=str(mandate_row.id),
         ),
     )
+
+
+def _proposal_snapshot(proposal: dict, product: Product) -> dict:
+    """
+    A self-contained snapshot of one merchant proposal (product name/
+    category/price, quantity, reason) for the audit payload -- so a later
+    "why was this blocked" view (the storefront's expandable AI Activity
+    evidence) never needs a second query to explain a rejected proposal,
+    since the product itself is never added to the cart when rejected.
+    """
+    return {
+        "proposed_product_name": product.name,
+        "proposed_category": product.category,
+        "proposed_price_minor": product.price_minor,
+        "proposed_quantity": proposal["quantity"],
+        "proposed_reason": proposal["reason"],
+    }
+
+
+def _mandate_snapshot(signed_mandate: SignedMandate) -> dict:
+    """A self-contained snapshot of the authorizing mandate's limits, for the same evidence view as _proposal_snapshot."""
+    return {
+        "mandate_max_amount_minor": signed_mandate.payload.max_amount,
+        "mandate_allowed_categories": signed_mandate.payload.allowed_categories,
+        "mandate_allow_addons": signed_mandate.payload.allow_addons,
+    }
 
 
 def _build_intent_gate_input(

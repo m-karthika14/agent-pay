@@ -12,6 +12,8 @@ export interface AuditEventRecord {
   event_type: string
   actor_type: string
   payload_hash: string
+  /** The exact payload the hash above was computed over -- null for events recorded before this field existed. */
+  payload: Record<string, unknown> | null
   previous_hash: string | null
   event_hash: string
   decision: string | null
