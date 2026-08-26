@@ -3,6 +3,7 @@ import { AppLayout } from '../layouts/AppLayout'
 import { RequireBuyer } from '../components/RequireBuyer'
 import { AgentActivityPage } from '../pages/AgentActivityPage'
 import { AuditPage } from '../pages/AuditPage'
+import { AuthorizeAgentPage } from '../pages/AuthorizeAgentPage'
 import { CartPage } from '../pages/CartPage'
 import { CheckoutPage } from '../pages/CheckoutPage'
 import { HistoryPage } from '../pages/HistoryPage'
@@ -33,6 +34,7 @@ export function AppRoutes() {
         <Route path="/checkout" element={<RequireBuyer><CheckoutPage /></RequireBuyer>} />
         <Route path="/order/:orderId" element={<RequireBuyer><OrderPage /></RequireBuyer>} />
         <Route path="/history" element={<RequireBuyer><HistoryPage /></RequireBuyer>} />
+        <Route path="/authorize-agent" element={<RequireBuyer><AuthorizeAgentPage /></RequireBuyer>} />
         <Route path="/agent" element={<AgentActivityPage />} />
 
         <Route path="/console" element={<MerchantConsolePage />} />
