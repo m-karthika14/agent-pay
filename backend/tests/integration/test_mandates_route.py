@@ -142,3 +142,30 @@ async def test_mandate_audit_events_are_visible_before_any_cart_exists() -> None
 
     assert cart_response.status_code == 200
     assert cart_response.json()["data"] is None
+
+
+async def test_list_mandates_for_user_returns_newest_first() -> None:
+    merchant = await _create_merchant()
+    email = f"buyer-{uuid.uuid4().hex[:8]}@agentpay.test"
+
+    async with await _client() as client:
+        first = await client.post("/api/mandates", json=_request_body(merchant, user_email=email))
+        second = await client.post("/api/mandates", json=_request_body(merchant, user_email=email))
+        user_id = (await client.post("/api/users", json={"email": email})).json()["data"]["user_id"]
+
+        response = await client.get(f"/api/mandates/by-user/{user_id}")
+
+    assert response.status_code == 200
+    mandate_ids = [m["mandate_id"] for m in response.json()["data"]]
+    assert mandate_ids == [second.json()["data"]["mandate_id"], first.json()["data"]["mandate_id"]]
+
+
+async def test_list_mandates_for_user_is_empty_for_a_new_user() -> None:
+    async with await _client() as client:
+        user_id = (
+            await client.post("/api/users", json={"email": f"new-{uuid.uuid4().hex[:8]}@agentpay.test"})
+        ).json()["data"]["user_id"]
+        response = await client.get(f"/api/mandates/by-user/{user_id}")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == []

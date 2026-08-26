@@ -19,6 +19,7 @@ from app.db.session import get_db_session
 from app.mandates.service import (
     create_mandate_from_request,
     get_mandate_by_business_id,
+    list_mandates_for_user,
     to_mandate_response,
     to_signed_mandate,
 )
@@ -27,6 +28,15 @@ from app.schemas.mandate import CreateMandateRequest, MandateResponse, MandateVe
 from app.security.mandate_verifier import verify_mandate
 
 router = APIRouter(prefix="/api/mandates", tags=["mandates"])
+
+
+@router.get("/by-user/{user_id}", response_model=ApiSuccessResponse[list[MandateResponse]])
+async def list_mandates_for_user_route(
+    user_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
+) -> ApiSuccessResponse[list[MandateResponse]]:
+    """List every mandate a user has ever authorized, newest first."""
+    result = await list_mandates_for_user(session, user_id)
+    return ApiSuccessResponse(data=result)
 
 
 @router.post("", response_model=ApiSuccessResponse[MandateResponse])

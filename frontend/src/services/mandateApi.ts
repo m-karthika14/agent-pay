@@ -9,6 +9,11 @@ export function createMandate(request: CreateMandateRequest): Promise<MandateRes
   return apiPost<MandateResponse>('/api/mandates', request)
 }
 
+/** List every mandate a user has ever authorized, newest first. */
+export function listMandatesForUser(userId: string): Promise<MandateResponse[]> {
+  return apiGet<MandateResponse[]>(`/api/mandates/by-user/${userId}`)
+}
+
 /** Fetch a mandate's public, decoded content by its business-facing mandate_id. */
 export function getMandate(mandateId: string): Promise<MandateResponse> {
   return apiGet<MandateResponse>(`/api/mandates/${mandateId}`)

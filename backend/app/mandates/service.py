@@ -207,6 +207,29 @@ async def create_mandate_from_request(session: AsyncSession, request: CreateMand
     return to_mandate_response(row)
 
 
+async def list_mandates_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[MandateResponse]:
+    """
+    List every mandate a user has ever authorized, newest first.
+
+    Lets the "Authorize an AI agent" page show every mandate_id this buyer
+    has created, not just the one from their most recent submission --
+    otherwise a mandate_id is only ever visible once, at creation time, and
+    is gone the moment the buyer navigates away without copying it.
+
+    Args:
+        session: Active AsyncSession.
+        user_id: The buyer's internal User.id.
+
+    Returns:
+        MandateResponse list, newest first. Empty if this user has never
+        authorized a mandate, not an error.
+    """
+    result = await session.execute(
+        select(Mandate).where(Mandate.user_id == user_id).order_by(Mandate.created_at.desc())
+    )
+    return [to_mandate_response(row) for row in result.scalars().all()]
+
+
 def to_mandate_response(row: Mandate) -> MandateResponse:
     """Decode a persisted Mandate row's signed_payload into the public MandateResponse shape."""
     signed_mandate = to_signed_mandate(row)
