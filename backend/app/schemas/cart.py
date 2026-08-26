@@ -53,4 +53,7 @@ class CartResponse(BaseModel):
     subtotal_minor: int
     frozen_at: datetime | None
     frozen_hash: str | None
+    mandate_id: str | None = Field(
+        default=None, description='Business-facing mandate_id (e.g. "M-001") that froze this cart, if any.'
+    )
     items: list[CartItemResponse]

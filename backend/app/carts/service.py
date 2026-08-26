@@ -21,6 +21,7 @@ from app.core.constants import CART_STATUS_OPEN
 from app.db.models.cart import Cart
 from app.db.models.cart_item import CartItem
 from app.db.models.inventory import Inventory
+from app.db.models.mandate import Mandate
 from app.db.models.merchant import Merchant
 from app.db.models.product import Product
 from app.db.models.user import User
@@ -53,6 +54,16 @@ async def to_cart_response(session: AsyncSession, cart: Cart) -> CartResponse:
         )
         for item, product_name in result.all()
     ]
+
+    business_mandate_id = None
+    if cart.mandate_id is not None:
+        # Lets a client that lost its own state (e.g. a page refresh
+        # mid-checkout) recover which mandate this cart is frozen under,
+        # rather than only being able to detect "already frozen" with no
+        # way to continue -- see frontend/src/pages/CheckoutPage.tsx.
+        mandate_row = await session.get(Mandate, cart.mandate_id)
+        business_mandate_id = mandate_row.mandate_id if mandate_row else None
+
     return CartResponse(
         cart_id=str(cart.id),
         user_id=str(cart.user_id),
@@ -62,6 +73,7 @@ async def to_cart_response(session: AsyncSession, cart: Cart) -> CartResponse:
         subtotal_minor=cart.subtotal_minor,
         frozen_at=cart.frozen_at,
         frozen_hash=cart.frozen_hash,
+        mandate_id=business_mandate_id,
         items=items,
     )
 

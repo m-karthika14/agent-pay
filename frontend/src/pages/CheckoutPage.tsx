@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LiveConversation } from '../components/LiveConversation'
 import { useBuyer } from '../context/BuyerContext'
@@ -35,6 +35,23 @@ export function CheckoutPage() {
     enabled: mandateId !== null,
     intervalMs: 2000,
   })
+
+  useEffect(() => {
+    // Recovers from navigating away and back to /checkout (or a page
+    // refresh) after already authorizing: this page's own `phase` state
+    // resets to 'review' on every mount, but the cart stayed FROZEN on the
+    // backend -- without this, clicking "Authorize purchase" again would
+    // hit IDEMPOTENCY_DUPLICATE on an already-checked-out cart instead of
+    // just picking back up where it left off.
+    if (phase === 'review' && cart && cart.status === 'FROZEN' && cart.mandate_id && cart.frozen_hash && cart.frozen_at) {
+      setMandateId(cart.mandate_id)
+      setCheckoutResult({ cart, frozen_hash: cart.frozen_hash, frozen_at: cart.frozen_at, proposal: null })
+      setPhase('authorized')
+    }
+    // phase intentionally excluded: this should only react to `cart`
+    // becoming available/changing, not re-run every time phase itself
+    // changes (which would include changes this same effect just made).
+  }, [cart])
 
   if (!cart || cart.items.length === 0) {
     return <p className="text-sm text-slate-500">Your cart is empty.</p>

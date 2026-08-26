@@ -22,5 +22,7 @@ export interface CartResponse {
   subtotal_minor: number
   frozen_at: string | null
   frozen_hash: string | null
+  /** Business-facing mandate_id (e.g. "M-001") that froze this cart, if any. */
+  mandate_id: string | null
   items: CartItemResponse[]
 }
