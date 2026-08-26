@@ -48,10 +48,10 @@ services:
         sync: false
       - key: ED25519_PUBLIC_KEY_B64
         sync: false
-      - key: GEMINI_API_KEY
+      - key: GROQ_API_KEY
         sync: false
-      - key: GEMINI_MODEL
-        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
       - key: MCP_PUBLIC_URL
         sync: false
       - key: MCP_SERVER_NAME

@@ -27,6 +27,7 @@ from app.api.routes import (
     console,
     health,
     mandates,
+    orders,
     products,
     transactions,
     users,
@@ -84,6 +85,7 @@ app.include_router(users.router)
 app.include_router(carts.router)
 app.include_router(mandates.router)
 app.include_router(checkout.router)
+app.include_router(orders.router)
 app.include_router(transactions.router)
 app.include_router(audit.router)
 app.include_router(console.router)

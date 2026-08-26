@@ -61,3 +61,14 @@ export interface TransactionTraceResponse {
   buyer: BuyerSummary
   events: TransactionTraceEvent[]
 }
+
+/** One row in a buyer's order history (storefront "Buying History" tab). */
+export interface OrderHistoryEntry {
+  order_id: string
+  mandate_id: string
+  status: string
+  amount_minor: number
+  currency: string
+  item_summary: string
+  created_at: string
+}

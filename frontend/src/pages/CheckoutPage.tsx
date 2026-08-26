@@ -21,7 +21,7 @@ type Phase = 'review' | 'authorizing' | 'authorized' | 'paying' | 'failed'
  */
 export function CheckoutPage() {
   const { cart, clearCart } = useCart()
-  const { email, name } = useBuyer()
+  const { email, name, loading: buyerLoading, error: buyerError } = useBuyer()
   const navigate = useNavigate()
 
   const [phase, setPhase] = useState<Phase>('review')
@@ -135,16 +135,23 @@ export function CheckoutPage() {
             />
           </label>
           <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={allowAddons} onChange={(e) => setAllowAddons(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={allowAddons}
+              onChange={(e) => setAllowAddons(e.target.checked)}
+              className="accent-indigo-600"
+            />
             Allow the merchant to propose add-ons
           </label>
           <button
             type="button"
+            disabled={buyerLoading || !email}
             onClick={() => void handleAuthorize()}
-            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-40"
           >
-            Authorize purchase
+            {buyerLoading ? 'Preparing your session…' : 'Authorize purchase'}
           </button>
+          {buyerError && <p className="text-sm text-red-600">Could not start your session: {buyerError.message}</p>}
         </div>
       )}
 
@@ -166,7 +173,7 @@ export function CheckoutPage() {
             type="button"
             disabled={phase === 'paying'}
             onClick={() => void handlePay()}
-            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-50"
           >
             {phase === 'paying' ? 'Opening Razorpay…' : `Pay ${formatCurrency(checkoutResult.cart.subtotal_minor, cart.currency)}`}
           </button>

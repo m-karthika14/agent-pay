@@ -5,8 +5,16 @@ its small product catalog, inventory, and one demo user (plan.md Section 18).
 
 Responsibilities:
 - Idempotently create the UrbanNest merchant (looked up by slug).
-- Idempotently create its 5 products (looked up by SKU) with inventory.
+- Idempotently create its 8 products (looked up by SKU) with inventory.
 - Idempotently create one demo user (looked up by email).
+
+The catalog is deliberately small and interconnected -- each product has one
+or two natural companions in a different category (earbuds -> case/adapter,
+watch -> strap, power bank -> cable/charger) -- so the Merchant Revenue
+Agent (app.agents.merchant) has genuine, LLM-legible cross-sell
+opportunities to reason about from the product names/descriptions alone.
+There are no bundle SKUs: the agent creates combinations by proposing
+separate products, never a pre-packaged bundle.
 
 Safe to run multiple times: existing rows (matched by their natural key)
 are left untouched rather than duplicated.
@@ -38,40 +46,64 @@ URBANNEST_PRODUCTS = [
         "name": "Wireless Earbuds",
         "description": "Compact true-wireless earbuds with charging case.",
         "price_minor": 249_900,
-        "category": "electronics",
+        "category": "audio",
         "quantity": 50,
+    },
+    {
+        "sku": "CASE-001",
+        "name": "Protective Earbuds Case",
+        "description": "Silicone protective case designed for the wireless earbuds.",
+        "price_minor": 29_900,
+        "category": "accessories",
+        "quantity": 100,
+    },
+    {
+        "sku": "ADAPTER-001",
+        "name": "USB-C Audio Adapter",
+        "description": "USB-C to 3.5mm adapter for wired listening alongside the wireless earbuds.",
+        "price_minor": 39_900,
+        "category": "accessories",
+        "quantity": 60,
     },
     {
         "sku": "WATCH-001",
         "name": "Smart Watch",
         "description": "Fitness-tracking smart watch with heart-rate monitor.",
         "price_minor": 349_900,
-        "category": "electronics",
+        "category": "wearables",
         "quantity": 30,
     },
     {
+        "sku": "STRAP-001",
+        "name": "Smart Watch Strap",
+        "description": "Adjustable replacement strap for the smart watch.",
+        "price_minor": 49_900,
+        "category": "accessories",
+        "quantity": 70,
+    },
+    {
         "sku": "POWERBANK-001",
-        "name": "Power Bank",
+        "name": "10,000mAh Power Bank",
         "description": "10,000 mAh USB-C power bank.",
         "price_minor": 129_900,
-        "category": "electronics",
+        "category": "power",
         "quantity": 80,
     },
     {
-        "sku": "CASE-001",
-        "name": "Protective Case",
-        "description": "Silicone protective case for the wireless earbuds.",
-        "price_minor": 29_900,
-        "category": "accessories",
-        "quantity": 100,
+        "sku": "CHARGER-001",
+        "name": "65W USB-C Charger",
+        "description": "65W USB-C fast charger, ideal for quickly topping up the power bank or other USB-C devices.",
+        "price_minor": 179_900,
+        "category": "power",
+        "quantity": 40,
     },
     {
-        "sku": "BUNDLE-001",
-        "name": "Premium Bundle",
-        "description": "Wireless earbuds bundled with a protective case.",
-        "price_minor": 279_900,
-        "category": "electronics",
-        "quantity": 20,
+        "sku": "CABLE-001",
+        "name": "USB-C Charging Cable",
+        "description": "1-meter USB-C charging cable, compatible with the power bank and charger.",
+        "price_minor": 39_900,
+        "category": "accessories",
+        "quantity": 100,
     },
 ]
 

@@ -15,8 +15,9 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import DEFAULT_DELIVERY_POLICY, DEFAULT_RETURN_POLICY
+from app.core.constants import DEFAULT_DELIVERY_POLICY, DEFAULT_RETURN_POLICY, URBANNEST_SLUG
 from app.db.models.inventory import Inventory
+from app.db.models.merchant import Merchant
 from app.db.models.product import Product
 from app.schemas.common import NotFoundError
 from app.schemas.product import InventoryResponse, ProductResponse
@@ -43,19 +44,29 @@ def _to_product_response(product: Product, inventory: Inventory | None) -> Produ
 
 async def list_products(session: AsyncSession) -> list[ProductResponse]:
     """
-    List all active products across the catalog.
+    List all active products in the UrbanNest catalog.
+
+    Scoped to the one real demo merchant (URBANNEST_SLUG), not every
+    Product row in the database -- the integration test suite creates its
+    own isolated, throwaway merchant+product fixtures per test (see e.g.
+    tests/integration/test_cart_checkout.py's `_create_fixture_data()`),
+    and without this filter every one of those would leak into what's
+    supposed to be a single-merchant storefront/MCP catalog.
 
     Args:
         session: Active AsyncSession.
 
     Returns:
-        ProductResponse list, one per active product, each carrying its
-        current availability derived from the inventory table.
+        ProductResponse list, one per active UrbanNest product, each
+        carrying its current availability derived from the inventory table.
+        Empty if the UrbanNest merchant hasn't been seeded yet
+        (scripts/seed_database.py), rather than an error.
     """
     result = await session.execute(
         select(Product, Inventory)
+        .join(Merchant, Merchant.id == Product.merchant_id)
         .outerjoin(Inventory, Inventory.product_id == Product.id)
-        .where(Product.is_active.is_(True))
+        .where(Product.is_active.is_(True), Merchant.slug == URBANNEST_SLUG)
         .order_by(Product.name)
     )
     return [_to_product_response(product, inventory) for product, inventory in result.all()]

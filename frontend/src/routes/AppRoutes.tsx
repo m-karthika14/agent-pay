@@ -4,6 +4,7 @@ import { AgentActivityPage } from '../pages/AgentActivityPage'
 import { AuditPage } from '../pages/AuditPage'
 import { CartPage } from '../pages/CartPage'
 import { CheckoutPage } from '../pages/CheckoutPage'
+import { HistoryPage } from '../pages/HistoryPage'
 import { HomePage } from '../pages/HomePage'
 import { MerchantConsolePage } from '../pages/MerchantConsolePage'
 import { OrderPage } from '../pages/OrderPage'
@@ -25,6 +26,7 @@ export function AppRoutes() {
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/order/:orderId" element={<OrderPage />} />
+        <Route path="/history" element={<HistoryPage />} />
         <Route path="/agent" element={<AgentActivityPage />} />
 
         <Route path="/console" element={<MerchantConsolePage />} />

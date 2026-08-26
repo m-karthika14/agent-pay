@@ -4,7 +4,7 @@
 # Git Bash / WSL on Windows).
 
 .PHONY: install install-frontend install-backend dev-frontend dev-backend \
-        test test-frontend test-backend db-up db-down migrate seed
+        test test-frontend test-backend test-backend-real-llm db-up db-down migrate seed
 
 ## Install both frontend and backend dependencies.
 install: install-frontend install-backend
@@ -29,8 +29,13 @@ test: test-frontend test-backend
 test-frontend:
 	cd frontend && npm test
 
+## Normal development: LLM calls are mocked (fast, deterministic, no Groq key needed).
 test-backend:
 	cd backend && uv run pytest
+
+## Before a demo: same suite, against real Groq -- confirms the live LLM integration works.
+test-backend-real-llm:
+	cd backend && REAL_LLM_TESTS=1 uv run pytest
 
 ## Start local PostgreSQL via docker-compose.
 db-up:

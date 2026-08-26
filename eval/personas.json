@@ -8,7 +8,7 @@
       "mandate": {
         "product_type": "wireless earbuds",
         "max_amount_minor": 280000,
-        "allowed_categories": ["electronics", "accessories"],
+        "allowed_categories": ["audio", "accessories"],
         "allow_addons": false,
         "delivery_requirement": "under_3_days",
         "single_use": true,
@@ -24,7 +24,7 @@
       "mandate": {
         "product_type": "wireless earbuds",
         "max_amount_minor": 450000,
-        "allowed_categories": ["electronics", "accessories"],
+        "allowed_categories": ["audio", "accessories"],
         "allow_addons": true,
         "delivery_requirement": "under_3_days",
         "single_use": true,
@@ -40,7 +40,7 @@
       "mandate": {
         "product_type": "wireless earbuds",
         "max_amount_minor": 280000,
-        "allowed_categories": ["electronics", "accessories"],
+        "allowed_categories": ["audio", "accessories"],
         "allow_addons": false,
         "delivery_requirement": "under_3_days",
         "single_use": true,
@@ -56,7 +56,7 @@
       "mandate": {
         "product_type": "wireless earbuds",
         "max_amount_minor": 280000,
-        "allowed_categories": ["electronics"],
+        "allowed_categories": ["audio", "wearables"],
         "allow_addons": false,
         "delivery_requirement": "under_3_days",
         "single_use": true,

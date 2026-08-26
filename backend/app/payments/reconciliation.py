@@ -20,6 +20,8 @@ Per plan.md Section 16.4/24.4: webhook events are not guaranteed to arrive
 in a specific order, so every handler here derives the new state from the
 event's own data rather than assuming what came before it.
 """
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,8 +30,10 @@ from app.db.models.mandate import Mandate
 from app.db.models.order import Order
 from app.db.models.transaction import Transaction
 from app.mandates.service import consume_mandate
-from app.payments.razorpay_client import fetch_order, fetch_payment
+from app.payments.razorpay_client import fetch_order, fetch_order_payments
 from app.schemas.audit import AuditEventInput
+from app.schemas.common import NotFoundError, ValidationError
+from app.schemas.payment import OrderSummary
 
 
 async def _load_order_and_transaction(
@@ -189,29 +193,92 @@ async def reconcile_order_state(session: AsyncSession, order: Order) -> None:
     """
     Pull the authoritative order/payment state directly from Razorpay and
     correct AgentPay's stored state if it has drifted from a missed or
-    delayed webhook.
+    delayed webhook (e.g. a local dev backend with no public URL for
+    Razorpay to deliver the webhook to at all).
 
     Args:
         session: Active AsyncSession.
         order: The order to reconcile. Must have razorpay_order_id set.
 
-    This is a manual/scripted reconciliation helper (e.g. for
-    scripts/run_smoke_test.py or ops use), not part of the webhook hot
-    path -- the webhook handlers above are the primary state-update path.
+    The captured payment's id is looked up from Razorpay itself
+    (fetch_order_payments), never from AgentPay's own Transaction row --
+    that field is exactly what's still empty when the webhook never
+    arrived, so reading it locally would always find nothing. Once a
+    captured payment is found, this delegates to handle_payment_captured()
+    -- the same function the webhook route calls -- so a reconciled order
+    ends up in byte-for-byte the same state (payment id recorded, audit
+    trail, mandate consumption) as if the webhook had actually arrived,
+    rather than a second, partial reimplementation of that logic.
+
+    Manual/scripted reconciliation helper (e.g. for ops use, or a
+    storefront "check payment status" action), not part of the webhook hot
+    path -- the webhook handlers above remain the primary state-update path.
     """
     razorpay_order = fetch_order(order.razorpay_order_id)
+    if razorpay_order.get("status") != "paid":
+        return
 
     result = await session.execute(select(Transaction).where(Transaction.order_id == order.id))
     transaction = result.scalar_one_or_none()
+    if transaction is None or transaction.status == "CAPTURED":
+        return
 
-    if razorpay_order.get("status") == "paid" and transaction is not None and transaction.status != "CAPTURED":
-        payments_result = await session.execute(
-            select(Transaction.razorpay_payment_id).where(Transaction.order_id == order.id)
+    payments = fetch_order_payments(order.razorpay_order_id)
+    captured_payment = next((p for p in payments if p.get("status") == "captured"), None)
+    if captured_payment is None:
+        return
+
+    await handle_payment_captured(
+        session,
+        razorpay_order_id=order.razorpay_order_id,
+        razorpay_payment_id=captured_payment["id"],
+        event_id=f"reconcile_{captured_payment['id']}",
+    )
+
+
+async def sync_order(session: AsyncSession, order_id: uuid.UUID) -> OrderSummary:
+    """
+    Re-check one order's payment status directly against Razorpay
+    (reconcile_order_state) and return its current state -- the storefront's
+    "check payment status" fallback for when Razorpay's webhook can't reach
+    a local/unreachable backend (e.g. no public tunnel configured in dev).
+
+    Args:
+        session: Active AsyncSession.
+        order_id: The order to sync.
+
+    Returns:
+        OrderSummary reflecting the order's state after reconciliation
+        (unchanged if there was nothing to reconcile, or nothing captured
+        yet on Razorpay's side).
+
+    Raises:
+        NotFoundError: If no order or its mandate exists with that id.
+        ValidationError: If the order has no razorpay_order_id yet (i.e.
+            /api/checkout/{cart_id}/complete was never called for it).
+    """
+    order_row = await session.get(Order, order_id)
+    if order_row is None:
+        raise NotFoundError("ORDER_NOT_FOUND", f"No order with id '{order_id}'.")
+    if order_row.razorpay_order_id is None:
+        raise ValidationError(
+            "ORDER_NOT_READY", f"Order '{order_id}' has no Razorpay order yet.", retryable=True
         )
-        payment_id = payments_result.scalar_one_or_none()
-        if payment_id:
-            payment = fetch_payment(payment_id)
-            if payment.get("status") == "captured":
-                transaction.status = "CAPTURED"
-                order.status = "PAID"
-                await session.flush()
+
+    await reconcile_order_state(session, order_row)
+    await session.commit()
+    await session.refresh(order_row)
+
+    mandate_row = await session.get(Mandate, order_row.mandate_id)
+    if mandate_row is None:
+        raise NotFoundError("MANDATE_NOT_FOUND", f"No mandate with id '{order_row.mandate_id}'.")
+
+    return OrderSummary(
+        order_id=str(order_row.id),
+        cart_id=str(order_row.cart_id),
+        mandate_id=mandate_row.mandate_id,
+        razorpay_order_id=order_row.razorpay_order_id,
+        status=order_row.status,
+        amount_minor=order_row.amount_minor,
+        currency=order_row.currency,
+    )

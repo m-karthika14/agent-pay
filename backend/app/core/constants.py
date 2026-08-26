@@ -29,3 +29,11 @@ DEFAULT_RETURN_POLICY = "7-day returns"
 # string column (business rules for the lifecycle live here, not in the DB).
 CART_STATUS_OPEN = "OPEN"
 CART_STATUS_FROZEN = "FROZEN"
+
+# The one real demo merchant (plan.md Section 18 / scripts/seed_database.py).
+# app.catalog.service's catalog listing filters to this merchant specifically
+# so the storefront/MCP catalog never picks up throwaway merchants the test
+# suite creates (each integration test creates its own isolated
+# merchant+product fixtures, independent of this seeded one -- see
+# tests/integration/*.py's `_create_fixture_data()` helpers).
+URBANNEST_SLUG = "urbannest"

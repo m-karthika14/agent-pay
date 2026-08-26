@@ -71,6 +71,19 @@ def fetch_payment(razorpay_payment_id: str) -> dict[str, Any]:
     return client.payment.fetch(razorpay_payment_id)
 
 
+def fetch_order_payments(razorpay_order_id: str) -> list[dict[str, Any]]:
+    """
+    List every payment attempt made against a Razorpay order.
+
+    Used by reconciliation (app.payments.reconciliation.reconcile_order_state)
+    to find the actual captured payment id when a webhook never arrived --
+    AgentPay's own Transaction row has no payment id in exactly that
+    situation, so it can't be looked up locally and must come from Razorpay.
+    """
+    client = get_razorpay_client()
+    return client.order.payments(razorpay_order_id)["items"]
+
+
 def capture_payment_if_needed(razorpay_payment_id: str, amount_minor: int) -> dict[str, Any]:
     """
     Capture an authorized-but-not-yet-captured payment.

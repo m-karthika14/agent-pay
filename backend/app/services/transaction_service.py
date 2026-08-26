@@ -13,8 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.carts.service import to_cart_response
 from app.db.models.audit_event import AuditEvent
 from app.db.models.cart import Cart
+from app.db.models.cart_item import CartItem
 from app.db.models.mandate import Mandate
 from app.db.models.order import Order
+from app.db.models.product import Product
 from app.db.models.transaction import Transaction
 from app.db.models.user import User
 from app.mandates.service import to_signed_mandate
@@ -22,6 +24,7 @@ from app.schemas.common import NotFoundError
 from app.schemas.payment import (
     BuyerSummary,
     MandateSummary,
+    OrderHistoryEntry,
     OrderSummary,
     TransactionResponse,
     TransactionTraceEvent,
@@ -60,6 +63,54 @@ async def get_transaction(session: AsyncSession, transaction_id: uuid.UUID) -> T
     if row is None:
         raise NotFoundError("TRANSACTION_NOT_FOUND", f"No transaction with id '{transaction_id}'.")
     return _to_transaction_response(row)
+
+
+async def list_orders_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[OrderHistoryEntry]:
+    """
+    List every order ever placed by a user, newest first (storefront
+    "Buying History" tab).
+
+    Orders don't carry user_id directly -- they're reached via
+    Order.cart_id -> Cart.user_id, since a cart is always created for a
+    specific buyer before any order exists.
+
+    Args:
+        session: Active AsyncSession.
+        user_id: The buyer whose orders to list.
+
+    Returns:
+        OrderHistoryEntry list, newest order first. Empty if the user has
+        never completed a checkout -- not an error, a normal new-buyer state.
+    """
+    orders_result = await session.execute(
+        select(Order, Mandate.mandate_id)
+        .join(Cart, Cart.id == Order.cart_id)
+        .join(Mandate, Mandate.id == Order.mandate_id)
+        .where(Cart.user_id == user_id)
+        .order_by(Order.created_at.desc())
+    )
+    rows = orders_result.all()
+
+    entries: list[OrderHistoryEntry] = []
+    for order_row, business_mandate_id in rows:
+        items_result = await session.execute(
+            select(CartItem.quantity, Product.name)
+            .join(Product, Product.id == CartItem.product_id)
+            .where(CartItem.cart_id == order_row.cart_id)
+        )
+        item_summary = ", ".join(f"{quantity}x {name}" for quantity, name in items_result.all())
+        entries.append(
+            OrderHistoryEntry(
+                order_id=str(order_row.id),
+                mandate_id=business_mandate_id,
+                status=order_row.status,
+                amount_minor=order_row.amount_minor,
+                currency=order_row.currency,
+                item_summary=item_summary,
+                created_at=order_row.created_at,
+            )
+        )
+    return entries
 
 
 async def get_transaction_trace(session: AsyncSession, transaction_id: uuid.UUID) -> TransactionTraceResponse:

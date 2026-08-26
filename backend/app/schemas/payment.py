@@ -86,6 +86,24 @@ class BuyerSummary(BaseModel):
     name: str
 
 
+class OrderHistoryEntry(BaseModel):
+    """
+    One row in a buyer's order history (storefront "Buying History" tab).
+
+    Deliberately lighter than TransactionTraceResponse -- a list view needs
+    a short item summary and the order's own status, not the full decision
+    trace of any single order.
+    """
+
+    order_id: str
+    mandate_id: str = Field(description='Business-facing mandate_id (e.g. "M-001").')
+    status: str = Field(description='Order.status: "CREATED", "PAID", or "PAYMENT_FAILED".')
+    amount_minor: int
+    currency: str
+    item_summary: str = Field(description='e.g. "2x Wireless Earbuds, 1x Protective Earbuds Case".')
+    created_at: datetime
+
+
 class TransactionTraceResponse(BaseModel):
     """
     A transaction's full ordered decision trace plus enough context (order,

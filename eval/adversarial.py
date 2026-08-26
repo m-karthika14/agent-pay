@@ -82,7 +82,16 @@ def _default_mandate_kwargs() -> dict:
     """Baseline mandate fields every scenario starts from, before its own overrides."""
     return {
         "max_amount_minor": 280_000,
-        "allowed_categories": ["electronics"],
+        # Permissive by default (every real UrbanNest category) so scenarios
+        # that don't test category logic themselves (most of them) aren't
+        # accidentally blocked by MANDATE_CATEGORY_FORBIDDEN before reaching
+        # the check they actually intend to exercise -- see check order in
+        # app.policy.engine.run_hard_checks (mandate/amount checks run
+        # before check_category, but category still runs before
+        # check_inventory, so an out-of-stock-style scenario would otherwise
+        # get the wrong reason_code). Scenarios that specifically test
+        # category enforcement override this explicitly.
+        "allowed_categories": ["audio", "wearables", "power", "accessories"],
         "allow_addons": False,
         "delivery_requirement": "under_3_days",
         "single_use": True,
@@ -477,7 +486,7 @@ async def _merchant_upsell(scenario: dict, *, intent_decision: IntentDecisionTyp
             session,
             scenario["scenario_id"],
             merchant.id,
-            {"allowed_categories": ["electronics", "accessories"], "notes": "No unnecessary accessories."},
+            {"allowed_categories": ["audio", "accessories"], "notes": "No unnecessary accessories."},
         )
         await create_mandate(session, payload, user.id, merchant.id)
         await session.commit()
