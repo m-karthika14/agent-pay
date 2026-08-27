@@ -32,6 +32,7 @@ from app.db.models.user import User
 from app.db.session import get_session_factory
 from app.mandates.service import create_mandate
 from app.schemas.mandate import MandateIntent, MandatePayload
+from app.services.audit_service import get_events_for_user
 
 
 async def _create_fixture_data():
@@ -192,6 +193,51 @@ async def test_get_unknown_product_returns_tool_error() -> None:
 
     assert result.is_error is True
     assert "PRODUCT_NOT_FOUND" in _text_of(result)
+
+
+async def test_search_products_without_user_id_records_no_activity() -> None:
+    """Browsing with no user_id given stays a zero-side-effect read, exactly as before this instrumentation existed."""
+    _merchant, _product, user = await _create_fixture_data()
+
+    async with _mcp_client_session() as session:
+        await session.call_tool("search_products", {})
+
+    factory = get_session_factory()
+    async with factory() as fetch_session:
+        events = await get_events_for_user(fetch_session, user.id)
+    assert not any(e.event_type == "PRODUCTS_SEARCHED" for e in events)
+
+
+async def test_search_products_with_user_id_shows_up_in_their_activity() -> None:
+    """The live-activity popup's data source: passing user_id makes a search a real, queryable event for that buyer."""
+    merchant, _product, user = await _create_fixture_data()
+
+    async with _mcp_client_session() as session:
+        result = await session.call_tool("search_products", {"merchant": merchant.slug, "user_id": str(user.id)})
+    assert result.is_error is False
+
+    factory = get_session_factory()
+    async with factory() as fetch_session:
+        events = await get_events_for_user(fetch_session, user.id)
+    searched = [e for e in events if e.event_type == "PRODUCTS_SEARCHED"]
+    assert len(searched) == 1
+    assert searched[0].payload["merchant_name"] == merchant.name
+    assert searched[0].user_id == str(user.id)
+
+
+async def test_get_product_with_user_id_records_product_viewed() -> None:
+    _merchant, product, user = await _create_fixture_data()
+
+    async with _mcp_client_session() as session:
+        result = await session.call_tool("get_product", {"product_id": str(product.id), "user_id": str(user.id)})
+    assert result.is_error is False
+
+    factory = get_session_factory()
+    async with factory() as fetch_session:
+        events = await get_events_for_user(fetch_session, user.id)
+    viewed = [e for e in events if e.event_type == "PRODUCT_VIEWED"]
+    assert len(viewed) == 1
+    assert viewed[0].payload["product_name"] == "MCP Test Widget"
 
 
 async def test_full_buyer_flow_through_mcp_with_mocked_razorpay() -> None:

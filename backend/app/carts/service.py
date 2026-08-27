@@ -121,7 +121,8 @@ async def create_cart(
     """
     if await session.get(User, user_id) is None:
         raise NotFoundError("USER_NOT_FOUND", f"No user with id '{user_id}'.")
-    if await session.get(Merchant, merchant_id) is None:
+    merchant = await session.get(Merchant, merchant_id)
+    if merchant is None:
         raise NotFoundError("MERCHANT_NOT_FOUND", f"No merchant with id '{merchant_id}'.")
 
     cart = Cart(
@@ -139,7 +140,7 @@ async def create_cart(
         AuditEventInput(
             event_type="CART_CREATED",
             actor_type="SYSTEM",
-            payload={"cart_id": str(cart.id), "merchant_id": str(merchant_id)},
+            payload={"cart_id": str(cart.id), "merchant_id": str(merchant_id), "merchant_name": merchant.name},
             user_id=str(user_id),
         ),
     )

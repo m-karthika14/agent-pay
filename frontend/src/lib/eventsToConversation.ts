@@ -93,7 +93,47 @@ export function eventsToConversation(events: AuditEventRecord[], cart?: CartResp
   for (const event of events) {
     const payload = event.payload
 
-    if (event.event_type === 'MANDATE_CREATED') {
+    if (event.event_type === 'PRODUCTS_SEARCHED') {
+      const merchantName = str(payload, 'merchant_name')
+      const resultCount = num(payload, 'result_count')
+      const where = merchantName ? `at ${merchantName}` : 'across both merchants'
+      const countText = resultCount !== undefined ? ` — found ${resultCount} product${resultCount === 1 ? '' : 's'}` : ''
+      messages.push(base(event, 'claude', `Searching ${where}${countText}…`, 'neutral'))
+    } else if (event.event_type === 'PRODUCT_VIEWED') {
+      const productName = str(payload, 'product_name')
+      const merchantName = str(payload, 'merchant_name')
+      const priceMinor = num(payload, 'price_minor')
+      const currency = str(payload, 'currency') ?? 'INR'
+      const priceText = priceMinor !== undefined ? ` — ${formatCurrency(priceMinor, currency)}` : ''
+      messages.push(
+        base(event, 'claude', `Looked at ${productName ?? 'a product'}${merchantName ? ` (${merchantName})` : ''}${priceText}.`, 'neutral'),
+      )
+    } else if (event.event_type === 'CART_CREATED') {
+      const merchantName = str(payload, 'merchant_name')
+      messages.push(
+        base(event, 'claude', merchantName ? `Started shopping at ${merchantName}…` : 'Started a new cart…', 'neutral'),
+      )
+    } else if (event.event_type === 'AUTHORIZATION_REQUESTED') {
+      const productType = str(payload, 'product_type')
+      const maxAmountMinor = num(payload, 'max_amount_minor')
+      const categories = strArray(payload, 'allowed_categories')
+      const reason = str(payload, 'reason')
+      const amountText = maxAmountMinor !== undefined ? formatCurrency(maxAmountMinor, 'INR') : 'an amount'
+      const categoryText = categories && categories.length > 0 ? categories.join(', ') : 'these items'
+      messages.push({
+        ...base(
+          event,
+          'claude',
+          `I'd like to buy ${productType ?? 'this'} — up to ${amountText}, in ${categoryText}.${reason ? ` ${reason}` : ''}`,
+          'checking',
+        ),
+        evidence: maxAmountMinor !== undefined ? { mandate: { maxAmountMinor, allowedCategories: categories } } : null,
+      })
+    } else if (event.event_type === 'AUTHORIZATION_APPROVED') {
+      messages.push(base(event, 'agentpay', '✓ Authorization approved — mandate signed.', 'approved'))
+    } else if (event.event_type === 'AUTHORIZATION_REJECTED') {
+      messages.push(base(event, 'agentpay', '❌ Authorization rejected.', 'blocked'))
+    } else if (event.event_type === 'MANDATE_CREATED') {
       messages.push(base(event, 'agentpay', 'Mandate received and verified.', 'pass'))
     } else if (event.event_type === 'HARD_POLICY_PASSED') {
       messages.push(base(event, 'agentpay', '✓ Hard policy checks passed.', 'pass'))
@@ -172,8 +212,14 @@ function base(
 /** True once the conversation has reached a terminal outcome (paid, failed, or fully blocked) -- used to stop showing the "typing" indicator. */
 export function isConversationSettled(events: AuditEventRecord[]): boolean {
   return events.some((e) =>
-    ['TRANSACTION_COMPLETED', 'PAYMENT_CAPTURED', 'PAYMENT_FAILED', 'TRANSACTION_BLOCKED', 'HARD_POLICY_BLOCKED', 'CART_REVALIDATION_BLOCKED'].includes(
-      e.event_type,
-    ),
+    [
+      'TRANSACTION_COMPLETED',
+      'PAYMENT_CAPTURED',
+      'PAYMENT_FAILED',
+      'TRANSACTION_BLOCKED',
+      'HARD_POLICY_BLOCKED',
+      'CART_REVALIDATION_BLOCKED',
+      'AUTHORIZATION_REJECTED',
+    ].includes(e.event_type),
   )
 }

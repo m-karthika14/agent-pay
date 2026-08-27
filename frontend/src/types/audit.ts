@@ -20,6 +20,8 @@ export interface AuditEventRecord {
   reason_code: string | null
   mandate_id: string | null
   order_id: string | null
+  /** Set on events that predate any mandate (CART_CREATED, AUTHORIZATION_*), so a buyer's own pre-mandate activity stays queryable. */
+  user_id: string | null
   created_at: string | null
 }
 

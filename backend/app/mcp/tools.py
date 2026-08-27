@@ -36,12 +36,14 @@ import uuid
 
 from mcp.server.mcpserver import MCPServer
 
+from app.audit.service import append_event
 from app.authorization import service as authorization_service
 from app.carts import service as carts_service
 from app.catalog import service as catalog_service
 from app.mcp.context import mcp_db_session
 from app.merchants.service import get_merchant_by_slug
 from app.payments.checkout import create_checkout_session
+from app.schemas.audit import AuditEventInput
 from app.schemas.authorization import AuthorizationRequestResponse, RequestAuthorizationInput
 from app.schemas.cart import CartResponse
 from app.schemas.checkout import CheckoutResponse
@@ -51,7 +53,7 @@ from app.schemas.product import ProductResponse
 from app.services import checkout_service
 
 
-async def search_products(merchant: str | None = None) -> list[ProductResponse]:
+async def search_products(merchant: str | None = None, user_id: str | None = None) -> list[ProductResponse]:
     """
     List active products across AgentPay's demo merchants (currently
     UrbanNest and TechHub) -- or just one, if you already know which.
@@ -69,26 +71,65 @@ async def search_products(merchant: str | None = None) -> list[ProductResponse]:
     Args:
         merchant: Optional merchant slug (e.g. "techhub") to search only
             that merchant. Omit to search every demo merchant at once.
+        user_id: The buyer's user id, if you already know it (e.g. they gave
+            it to you earlier in this conversation). Passing it makes this
+            search show up live in their AgentPay storefront -- purely a
+            transparency nicety, never required for the search itself.
     """
     async with mcp_db_session() as session:
         merchant_id = None
+        merchant_row = None
         if merchant is not None:
             merchant_row = await get_merchant_by_slug(session, merchant)
             if merchant_row is None:
                 raise NotFoundError("MERCHANT_NOT_FOUND", f"No merchant with slug '{merchant}'.")
             merchant_id = merchant_row.id
-        return await catalog_service.list_products(session, merchant_id)
+        results = await catalog_service.list_products(session, merchant_id)
+        if user_id is not None:
+            await append_event(
+                session,
+                AuditEventInput(
+                    event_type="PRODUCTS_SEARCHED",
+                    actor_type="BUYER_AGENT",
+                    payload={
+                        "merchant_slug": merchant,
+                        "merchant_name": merchant_row.name if merchant_row else None,
+                        "result_count": len(results),
+                    },
+                    user_id=user_id,
+                ),
+            )
+        return results
 
 
-async def get_product(product_id: str) -> ProductResponse:
+async def get_product(product_id: str, user_id: str | None = None) -> ProductResponse:
     """
     Fetch full details for a single product by its id.
 
     Args:
         product_id: A product id, as returned by search_products().
+        user_id: The buyer's user id, if you already know it -- same
+            transparency nicety as search_products()'s user_id.
     """
     async with mcp_db_session() as session:
-        return await catalog_service.get_product(session, uuid.UUID(product_id))
+        product = await catalog_service.get_product(session, uuid.UUID(product_id))
+        if user_id is not None:
+            await append_event(
+                session,
+                AuditEventInput(
+                    event_type="PRODUCT_VIEWED",
+                    actor_type="BUYER_AGENT",
+                    payload={
+                        "product_id": product_id,
+                        "product_name": product.name,
+                        "merchant_name": product.merchant_name,
+                        "price_minor": product.price_minor,
+                        "currency": product.currency,
+                    },
+                    user_id=user_id,
+                ),
+            )
+        return product
 
 
 async def create_cart(user_id: str, merchant_id: str, currency: str = "INR") -> CartResponse:
