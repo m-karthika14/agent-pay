@@ -90,10 +90,19 @@ async def evaluate_intent(gate_input: IntentGateInput) -> IntentDecision:
 
 def _build_prompt(gate_input: IntentGateInput) -> str:
     """Render one IntentGateInput into the plain-text prompt sent to the LLM."""
+    addons_line = (
+        f"Mandate add-on permission: the buyer PRE-AUTHORIZED add-on proposals in these categories: "
+        f"{', '.join(gate_input.mandate_allowed_categories)} (allow_addons=true). Judge relevance and "
+        "usefulness, not whether this exact product was named."
+        if gate_input.mandate_allow_addons
+        else "Mandate add-on permission: the buyer did NOT authorize add-on proposals (allow_addons=false) "
+        "-- hold this proposal to their original request literally."
+    )
     return (
         f"Original buyer request: {gate_input.original_buyer_request}\n"
         f"Signed intent -- product type: {gate_input.signed_intent_product_type}\n"
         f"Signed intent -- notes: {gate_input.signed_intent_notes or '(none)'}\n"
+        f"{addons_line}\n"
         f"Original authorized cart: {gate_input.original_cart_summary}\n"
         f"Merchant's proposed modification: {gate_input.proposed_modification}\n"
         f"Merchant's stated reason for the proposal: {gate_input.merchant_proposal_reason}\n\n"

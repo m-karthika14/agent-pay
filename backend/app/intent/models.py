@@ -36,6 +36,17 @@ class IntentGateInput(BaseModel):
     original_cart_summary: str = Field(description="Plain-text summary of the frozen, authorized cart.")
     proposed_modification: str = Field(description="Plain-text summary of the merchant's proposed change.")
     merchant_proposal_reason: str
+    #: The mandate's own explicit add-on permission (plan.md Rule 1: already
+    #: enforced deterministically before this gate ever runs) -- given to the
+    #: gate so it can calibrate how literally to read the buyer's original
+    #: wording. Without this, "add-ons allowed" had no effect on the gate's
+    #: reasoning at all: it judged every proposal purely against whether the
+    #: exact product was named, which made allow_addons=True meaningless in
+    #: practice (a live reported case: an authorized, in-budget,
+    #: in-category cable proposal was still BLOCKed for "not specified in
+    #: buyer's signed intent").
+    mandate_allow_addons: bool
+    mandate_allowed_categories: list[str]
 
 
 class IntentDecision(BaseModel):

@@ -6,7 +6,10 @@ imported it), mirroring tests/unit/test_merchant_agent.py's pattern -- no
 live GROQ_API_KEY is required to run this suite. Each test exercises one
 branch of evaluate_intent()'s fail-closed decision logic (plan.md Rule 2).
 """
+import os
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from app.ai.errors import LLMUnavailableError
 from app.core.config import get_settings
@@ -16,6 +19,7 @@ from app.intent.models import IntentDecisionType, IntentGateInput, _IntentClassi
 from app.policy import reason_codes
 
 PATCH_TARGET = "app.intent.gate.classify_with_schema"
+REAL_LLM_ENV_VAR = "REAL_LLM_TESTS"
 
 _SAMPLE_INPUT = IntentGateInput(
     original_buyer_request="Buy wireless earbuds under Rs 3,000. No unnecessary accessories.",
@@ -24,6 +28,11 @@ _SAMPLE_INPUT = IntentGateInput(
     original_cart_summary="1x Wireless Earbuds - Rs 2,499",
     proposed_modification="Add 1x Protective Case - Rs 299",
     merchant_proposal_reason="Frequently bought together.",
+    # Deliberately allow_addons=True with a conflicting note: this is the
+    # exact "explicit buyer restriction overrides the general add-on
+    # permission" scenario app.intent.prompt's system prompt calls out.
+    mandate_allow_addons=True,
+    mandate_allowed_categories=["audio", "accessories"],
 )
 
 
@@ -93,6 +102,42 @@ async def test_low_confidence_block_is_still_overridden_to_escalate() -> None:
 
     assert result.decision == IntentDecisionType.ESCALATE
     assert result.reason_code == reason_codes.PROPOSAL_LOW_CONFIDENCE
+
+
+@pytest.mark.skipif(
+    os.environ.get(REAL_LLM_ENV_VAR, "").lower() not in {"1", "true", "yes"},
+    reason=f"Live LLM reasoning check against real Groq -- set {REAL_LLM_ENV_VAR}=1 to run.",
+)
+async def test_real_llm_allows_an_authorized_addon_not_literally_named_by_the_buyer() -> None:
+    """
+    Live reported bug, run against the REAL Groq model (not mocked): a
+    mandate with allow_addons=true and "accessories" in allowed_categories
+    still got PROPOSAL_INTENT_VIOLATION for a Rs 599 in-budget, in-category
+    cable, on the reasoning "not specified in buyer's signed intent." That
+    made allow_addons=true meaningless -- the buyer pre-authorized the
+    merchant to propose add-ons; the gate should judge relevance, not
+    literal pre-mention. Proves the strengthened prompt (plan.md Phase 4.6)
+    now allows a genuinely relevant, explicitly-authorized add-on through.
+
+    Skipped by default (see REAL_LLM_ENV_VAR) since it needs a real
+    GROQ_API_KEY and hits the live API -- run explicitly before a demo.
+    """
+    gate_input = IntentGateInput(
+        original_buyer_request="Buy the best wireless earbuds you can find under Rs 10,000.",
+        signed_intent_product_type="wireless earbuds",
+        signed_intent_notes=None,
+        original_cart_summary="1x JBL Tune Flex Ghost Edition - Rs 7,999",
+        proposed_modification="Add 1x USB-C to Lightning Cable - Rs 599",
+        merchant_proposal_reason="A charging cable is a useful accessory that pairs well with the audio product.",
+        mandate_allow_addons=True,
+        mandate_allowed_categories=["audio", "accessories"],
+    )
+    result = await evaluate_intent(gate_input)
+
+    assert result.decision == IntentDecisionType.ALLOW, (
+        f"Expected an explicitly-authorized, in-budget, in-category add-on to be ALLOWed, got "
+        f"{result.decision} ({result.reason_code}): {result.reason}"
+    )
 
 
 def test_calibration_set_covers_all_three_categories() -> None:

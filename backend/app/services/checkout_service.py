@@ -637,4 +637,6 @@ def _build_intent_gate_input(
         original_cart_summary=cart_summary,
         proposed_modification=proposed_modification,
         merchant_proposal_reason=proposal["reason"],
+        mandate_allow_addons=signed_mandate.payload.allow_addons,
+        mandate_allowed_categories=signed_mandate.payload.allowed_categories,
     )

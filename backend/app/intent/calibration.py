@@ -42,6 +42,8 @@ CALIBRATION_SET: list[CalibrationCase] = [
             original_cart_summary="1x Wireless Earbuds - Rs 2,499",
             proposed_modification="Add 1x Smart Watch - Rs 3,499 (replace earbuds with a bundle deal)",
             merchant_proposal_reason="Customers who buy earbuds often also want a smart watch; bundled discount available.",
+            mandate_allow_addons=True,
+            mandate_allowed_categories=["audio", "wearables"],
         ),
     ),
     CalibrationCase(
@@ -55,6 +57,8 @@ CALIBRATION_SET: list[CalibrationCase] = [
             original_cart_summary="1x Power Bank - Rs 1,299",
             proposed_modification="Add 1x Protective Case - Rs 299 (for the power bank)",
             merchant_proposal_reason="A protective case is a low-cost, directly relevant travel accessory for the power bank.",
+            mandate_allow_addons=True,
+            mandate_allowed_categories=["power", "accessories"],
         ),
     ),
     # --- clearly_violating: the proposal plainly conflicts with signed intent ---
@@ -69,6 +73,12 @@ CALIBRATION_SET: list[CalibrationCase] = [
             original_cart_summary="1x Wireless Earbuds - Rs 2,499",
             proposed_modification="Add 1x Protective Case - Rs 299",
             merchant_proposal_reason="Frequently bought together; increases basket value.",
+            # Deliberately allow_addons=True: the buyer's explicit note ("no
+            # unnecessary accessories") must still override the mandate's
+            # general add-on permission -- this is the calibration case for
+            # that exact rule in app.intent.prompt's system prompt.
+            mandate_allow_addons=True,
+            mandate_allowed_categories=["audio", "accessories"],
         ),
     ),
     CalibrationCase(
@@ -82,6 +92,9 @@ CALIBRATION_SET: list[CalibrationCase] = [
             original_cart_summary="1x Smart Watch - Rs 3,499",
             proposed_modification="Add 1x Premium Bundle - Rs 2,799 (extra accessories bundle)",
             merchant_proposal_reason="Premium bundle upsell increases average order value.",
+            # "just the watch, nothing else" reads as a full add-on opt-out.
+            mandate_allow_addons=False,
+            mandate_allowed_categories=["wearables"],
         ),
     ),
     # --- ambiguous: reasonable people could disagree ---
@@ -96,6 +109,8 @@ CALIBRATION_SET: list[CalibrationCase] = [
             original_cart_summary="1x Wireless Earbuds - Rs 2,499",
             proposed_modification="Add 1x Protective Case - Rs 299",
             merchant_proposal_reason="Protects the earbuds; commonly purchased together.",
+            mandate_allow_addons=True,
+            mandate_allowed_categories=["audio", "accessories"],
         ),
     ),
     CalibrationCase(
@@ -109,6 +124,8 @@ CALIBRATION_SET: list[CalibrationCase] = [
             original_cart_summary="1x Power Bank - Rs 1,299",
             proposed_modification="Replace with 1x Premium Bundle - Rs 2,799 (includes a power bank plus accessories)",
             merchant_proposal_reason="The bundle includes a comparable power bank plus extras at a similar per-item value.",
+            mandate_allow_addons=True,
+            mandate_allowed_categories=["power", "accessories"],
         ),
     ),
 ]
