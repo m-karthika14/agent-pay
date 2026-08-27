@@ -39,7 +39,7 @@ export function ProductPage() {
 
   return (
     <div className="grid max-w-3xl gap-8 sm:grid-cols-2">
-      <ProductImage category={p.category} className="aspect-square rounded-2xl" />
+      <ProductImage category={p.category} name={p.name} className="aspect-square rounded-2xl" />
 
       <div className="space-y-4">
         <p className={`text-xs font-semibold tracking-wide uppercase ${theme.accentText}`}>{p.category}</p>
