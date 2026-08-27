@@ -147,10 +147,14 @@ def make_generate_candidates_node():
             "cart's current subtotal -- every candidate below already fits that headroom at quantity 1, "
             "but pick a quantity whose total price (unit price x quantity) does not exceed it.\n\n"
             f"In-stock candidate products you may propose adding (already filtered to this mandate's "
-            f"allowed categories and this remaining headroom):\n"
+            f"allowed categories and this remaining headroom -- NOT yet filtered for whether they're "
+            f"actually a sensible complement, that judgment is yours):\n"
             f"{in_stock}\n\n"
-            "Propose up to 3 ranked upsell/cross-sell candidates from this list "
-            "that would genuinely increase basket value for this cart."
+            "Propose up to 3 ranked upsell/cross-sell candidates from this list, ranked by how genuinely "
+            "complementary and useful each one is alongside the cart -- not simply by price or category "
+            "match. Do not propose a candidate that serves substantially the same primary purpose as "
+            "something already in the cart (per your system instructions); skip it and rank the next "
+            "genuinely complementary candidate instead, even if that means proposing fewer than 3."
         )
         system_instruction = build_merchant_agent_system_prompt(state["merchant_name"])
         try:
