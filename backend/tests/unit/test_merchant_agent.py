@@ -151,7 +151,9 @@ async def test_llm_unavailable_falls_back_to_no_proposal() -> None:
     factory = get_session_factory()
     async with factory() as session:
         with patch(PATCH_TARGET, new=AsyncMock(side_effect=LLMUnavailableError("no key"))):
-            result = await run_merchant_agent(session, fixture["cart_id"], fixture["mandate_id"])
+            result = await run_merchant_agent(
+                session, fixture["cart_id"], fixture["mandate_id"], 500_000, ["electronics"]
+            )
         await session.commit()
 
     assert result["final_status"] == ProposalStatus.NO_PROPOSAL
@@ -166,7 +168,9 @@ async def test_allowed_candidate_is_accepted_on_first_try() -> None:
     factory = get_session_factory()
     async with factory() as session:
         with patch(PATCH_TARGET, new=AsyncMock(return_value=candidates)):
-            result = await run_merchant_agent(session, fixture["cart_id"], fixture["mandate_id"])
+            result = await run_merchant_agent(
+                session, fixture["cart_id"], fixture["mandate_id"], 500_000, ["electronics"]
+            )
         await session.commit()
 
     assert result["final_status"] == ProposalStatus.PROPOSAL_ALLOWED
@@ -182,7 +186,9 @@ async def test_forbidden_category_candidate_is_rejected_and_original_cart_retain
     factory = get_session_factory()
     async with factory() as session:
         with patch(PATCH_TARGET, new=AsyncMock(return_value=candidates)):
-            result = await run_merchant_agent(session, fixture["cart_id"], fixture["mandate_id"])
+            result = await run_merchant_agent(
+                session, fixture["cart_id"], fixture["mandate_id"], 500_000, ["electronics"]
+            )
         await session.commit()
 
     assert result["final_status"] == ProposalStatus.ORIGINAL_CART_RETAINED
@@ -199,7 +205,9 @@ async def test_out_of_stock_candidate_is_rejected_via_inventory_check() -> None:
     factory = get_session_factory()
     async with factory() as session:
         with patch(PATCH_TARGET, new=AsyncMock(return_value=candidates)):
-            result = await run_merchant_agent(session, fixture["cart_id"], fixture["mandate_id"])
+            result = await run_merchant_agent(
+                session, fixture["cart_id"], fixture["mandate_id"], 500_000, ["electronics"]
+            )
         await session.commit()
 
     assert result["final_status"] == ProposalStatus.ORIGINAL_CART_RETAINED
@@ -216,7 +224,9 @@ async def test_revision_loop_tries_next_best_candidate_after_a_rejection() -> No
     factory = get_session_factory()
     async with factory() as session:
         with patch(PATCH_TARGET, new=AsyncMock(return_value=candidates)):
-            result = await run_merchant_agent(session, fixture["cart_id"], fixture["mandate_id"])
+            result = await run_merchant_agent(
+                session, fixture["cart_id"], fixture["mandate_id"], 500_000, ["electronics"]
+            )
         await session.commit()
 
     assert result["final_status"] == ProposalStatus.PROPOSAL_ALLOWED
@@ -237,7 +247,9 @@ async def test_all_candidates_rejected_retains_original_cart_after_max_attempts(
     factory = get_session_factory()
     async with factory() as session:
         with patch(PATCH_TARGET, new=AsyncMock(return_value=candidates)):
-            result = await run_merchant_agent(session, fixture["cart_id"], fixture["mandate_id"])
+            result = await run_merchant_agent(
+                session, fixture["cart_id"], fixture["mandate_id"], 500_000, ["electronics"]
+            )
         await session.commit()
 
     assert result["final_status"] == ProposalStatus.ORIGINAL_CART_RETAINED
@@ -249,3 +261,85 @@ async def test_all_candidates_rejected_retains_original_cart_after_max_attempts(
         fixture["forbidden2_id"],
         fixture["forbidden3_id"],
     }
+
+
+async def test_out_of_category_and_over_headroom_candidates_are_never_shown_to_the_llm() -> None:
+    """
+    Reported live bug: the agent previously ranked every in-stock product
+    purely by "value add," with no visibility into the mandate's real
+    category/budget constraints -- it could burn all its attempts on
+    candidates that were always going to be rejected downstream, even when
+    a real, in-budget, in-category candidate never got a look because the
+    LLM's own ranking (blind to constraints) never surfaced it.
+
+    This test proves the deterministic fix directly: when NOTHING in the
+    catalog could ever be accepted (wrong category, or priced above the
+    mandate's remaining headroom), search_relevant_products's filter empties
+    candidate_products before generate_candidates runs -- so the LLM is
+    never even called, and the outcome is NO_PROPOSAL with zero attempts,
+    not three wasted ones.
+    """
+    factory = get_session_factory()
+    unique = uuid.uuid4().hex[:8]
+    async with factory() as session:
+        merchant = Merchant(slug=f"agent-filter-test-{unique}", name="Agent Filter Test Merchant", currency="INR")
+        user = User(email=f"agent-filter-test-{unique}@agentpay.test", name="Agent Filter Test User")
+        session.add_all([merchant, user])
+        await session.flush()
+
+        cart_product = Product(
+            merchant_id=merchant.id, sku=f"CART-{unique}", name="Cart Item", description="d",
+            price_minor=100_000, currency="INR", category="electronics", is_active=True,
+        )
+        wrong_category = Product(
+            merchant_id=merchant.id, sku=f"WRONGCAT-{unique}", name="Wrong Category Upsell", description="d",
+            price_minor=5_000, currency="INR", category="accessories", is_active=True,  # not in allowed_categories
+        )
+        too_expensive = Product(
+            merchant_id=merchant.id, sku=f"EXPENSIVE-{unique}", name="Too Expensive Upsell", description="d",
+            price_minor=50_000, currency="INR", category="electronics", is_active=True,  # right category, over headroom
+        )
+        session.add_all([cart_product, wrong_category, too_expensive])
+        await session.flush()
+        session.add_all(
+            [
+                Inventory(product_id=cart_product.id, quantity=10),
+                Inventory(product_id=wrong_category.id, quantity=10),
+                Inventory(product_id=too_expensive.id, quantity=10),
+            ]
+        )
+        await session.commit()
+
+        payload = MandatePayload(
+            mandate_id=f"M-agent-filter-test-{unique}",
+            merchant_id=str(merchant.id),
+            currency="INR",
+            max_amount=110_000,  # Rs 10,000 headroom above the cart's Rs 100,000 -- too_expensive (Rs 50,000) can't fit
+            allowed_categories=["electronics"],
+            allow_addons=False,
+            delivery_requirement="under_3_days",
+            single_use=True,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+            intent=MandateIntent(product_type="test widget"),
+        )
+        await create_mandate(session, payload, user.id, merchant.id)
+        await session.commit()
+
+        cart = await create_cart(session, user.id, merchant.id, "INR")
+        await add_cart_item(session, uuid.UUID(cart.cart_id), cart_product.id, 1)
+        await session.commit()
+
+        await request_checkout(session, uuid.UUID(cart.cart_id), payload.mandate_id)
+        await session.commit()
+
+        llm_mock = AsyncMock(return_value=_candidate_list())
+        with patch(PATCH_TARGET, new=llm_mock):
+            result = await run_merchant_agent(
+                session, uuid.UUID(cart.cart_id), payload.mandate_id, payload.max_amount, payload.allowed_categories
+            )
+        await session.commit()
+
+    llm_mock.assert_not_called()
+    assert result["final_status"] == ProposalStatus.NO_PROPOSAL
+    assert result["final_proposal"] is None
+    assert result["attempt_count"] == 0

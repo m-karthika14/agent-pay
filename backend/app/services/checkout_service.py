@@ -290,7 +290,9 @@ async def _run_merchant_advisory(
             mandate_id=str(mandate_row.id),
         ),
     )
-    agent_result = await run_merchant_agent(session, cart.id, mandate_id)
+    agent_result = await run_merchant_agent(
+        session, cart.id, mandate_id, signed_mandate.payload.max_amount, signed_mandate.payload.allowed_categories
+    )
 
     if agent_result["final_status"] != ProposalStatus.PROPOSAL_ALLOWED:
         # The agent never got as far as a hard-check-passed proposal to

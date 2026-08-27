@@ -29,7 +29,7 @@ from app.authorization.service import (
     get_authorization_request,
     reject_authorization_request,
 )
-from app.carts.service import add_cart_item, create_cart
+from app.carts.service import add_cart_item, create_cart, get_cart_by_mandate
 from app.core.config import get_settings
 from app.db.models.inventory import Inventory
 from app.db.models.mandate import Mandate, MandateStatus
@@ -352,6 +352,42 @@ async def test_checkout_with_no_mandate_id_resolves_the_approved_one() -> None:
     assert checkout_result.cart.mandate_id == approved.resulting_mandate_id
 
 
+async def test_rest_route_accepts_checkout_request_with_no_mandate_id() -> None:
+    """
+    Phase 4.2: POST /api/checkout/request itself (not just the service
+    function) accepts an omitted mandate_id -- needed by the storefront's
+    own CheckoutPage, which must be able to try the cart's already-approved
+    Claude authorization first, before ever creating a second, redundant
+    mandate of its own.
+    """
+    merchant, product, user = await _create_merchant_with_product(price_minor=200_000)
+    cart_id = await _create_cart_with_item(merchant, product, user)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        terms = _suggested_terms(cart_id, product, max_amount_minor=300_000)
+        request = await create_authorization_request(session, terms)
+        await session.commit()
+
+        approved = await approve_authorization_request(
+            session,
+            uuid.UUID(request.request_id),
+            ApproveAuthorizationRequest(
+                product_type=product.name, max_amount_minor=300_000, allowed_categories=[product.category]
+            ),
+        )
+        await session.commit()
+
+    async with await _client() as client:
+        response = await client.post("/api/checkout/request", json={"cart_id": str(cart_id)})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["data"]["cart"]["status"] == "FROZEN"
+    assert body["data"]["cart"]["mandate_id"] == approved.resulting_mandate_id
+
+
 async def test_checkout_with_no_mandate_id_and_no_approval_is_rejected() -> None:
     """Phase 2.1: request_checkout(cart_id) before any approval (or with none at all) fails loud, not silently."""
     merchant, product, user = await _create_merchant_with_product()
@@ -421,6 +457,45 @@ async def test_checkout_with_no_mandate_id_reuses_frozen_carts_own_mandate_on_re
     assert raised is not None
     assert raised.reason_code == "IDEMPOTENCY_DUPLICATE"
     assert approved.resulting_mandate_id is not None  # sanity: this test actually exercised the approved path
+
+
+async def test_get_cart_by_mandate_finds_cart_before_checkout_is_requested() -> None:
+    """
+    Reported live bug: right after a human approves a Claude-initiated
+    authorization request, the mandate is ACTIVE and signed immediately,
+    but the cart Claude already built stays OPEN and unlinked until Claude's
+    own later request_checkout() call -- a real, populated cart, invisible
+    to a human watching the AI Activity page by mandate_id in exactly that
+    (normal, often multi-minute) window. get_cart_by_mandate() must fall
+    back to the cart behind the approved request, not just Cart.mandate_id.
+    """
+    merchant, product, user = await _create_merchant_with_product(price_minor=799_900)
+    cart_id = await _create_cart_with_item(merchant, product, user)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        terms = _suggested_terms(cart_id, product, max_amount_minor=899_900)
+        request = await create_authorization_request(session, terms)
+        await session.commit()
+
+        approved = await approve_authorization_request(
+            session,
+            uuid.UUID(request.request_id),
+            ApproveAuthorizationRequest(
+                product_type=product.name, max_amount_minor=899_900, allowed_categories=[product.category]
+            ),
+        )
+        await session.commit()
+
+        mandate_row = await get_mandate_by_business_id(session, approved.resulting_mandate_id)
+        assert mandate_row.status == MandateStatus.ACTIVE  # signed, but no checkout requested yet
+
+        found_cart = await get_cart_by_mandate(session, mandate_row.id)
+
+    assert found_cart is not None
+    assert found_cart.cart_id == str(cart_id)
+    assert len(found_cart.items) == 1
+    assert found_cart.items[0].product_name == product.name
 
 
 async def test_authorize_agent_first_flow_still_works_with_explicit_mandate_id() -> None:

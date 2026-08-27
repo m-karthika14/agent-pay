@@ -18,7 +18,13 @@ from app.agents.merchant.state import MerchantAgentState
 from app.schemas.proposal import ProposalStatus
 
 
-async def run_merchant_agent(session: AsyncSession, cart_id: uuid.UUID, mandate_id: str) -> MerchantAgentState:
+async def run_merchant_agent(
+    session: AsyncSession,
+    cart_id: uuid.UUID,
+    mandate_id: str,
+    mandate_max_amount_minor: int,
+    mandate_allowed_categories: list[str],
+) -> MerchantAgentState:
     """
     Run the Merchant Revenue Agent against a (frozen) cart.
 
@@ -27,6 +33,13 @@ async def run_merchant_agent(session: AsyncSession, cart_id: uuid.UUID, mandate_
         cart_id: The cart to analyze and potentially propose an addition to.
         mandate_id: Business-facing mandate_id authorizing the cart, needed
             so submit_proposal() can evaluate proposals against it.
+        mandate_max_amount_minor: The mandate's real spending ceiling --
+            used to filter out candidates that couldn't possibly fit the
+            remaining headroom before ever asking the LLM to consider them
+            (previously the LLM ranked purely by "value add," blind to
+            budget, and could burn all its attempts on doomed picks).
+        mandate_allowed_categories: The mandate's category allow-list, for
+            the same reason -- a candidate outside it can never be accepted.
 
     Returns:
         The final MerchantAgentState. `final_status` is one of
@@ -40,6 +53,8 @@ async def run_merchant_agent(session: AsyncSession, cart_id: uuid.UUID, mandate_
         "merchant_id": "",
         "merchant_name": "",
         "mandate_id": mandate_id,
+        "mandate_max_amount_minor": mandate_max_amount_minor,
+        "mandate_allowed_categories": mandate_allowed_categories,
         "original_cart": {},
         "candidate_products": [],
         "inventory_results": {},

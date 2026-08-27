@@ -25,6 +25,14 @@ class MerchantAgentState(TypedDict):
     #: scope candidate product search to this merchant only.
     merchant_name: str
     mandate_id: str
+    #: The mandate's real spending ceiling and category allow-list (from
+    #: SignedMandate.payload, read once by checkout_service before this
+    #: graph runs) -- used to deterministically filter candidates in
+    #: search_relevant_products() to ones that could actually be accepted,
+    #: instead of letting the LLM rank purely by "value add" and only
+    #: discovering a category/budget mismatch after submitting.
+    mandate_max_amount_minor: int
+    mandate_allowed_categories: list[str]
 
     #: Snapshot of the cart at the start of the run (CartResponse.model_dump()).
     original_cart: dict[str, Any]

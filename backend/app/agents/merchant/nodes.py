@@ -76,12 +76,33 @@ def make_analyze_cart_node(session: AsyncSession):
 
 
 def make_search_relevant_products_node(session: AsyncSession):
-    """Build the search_relevant_products node: find this merchant's products not already in the cart."""
+    """
+    Build the search_relevant_products node: find this merchant's products
+    that could actually become an accepted proposal for this cart -- not
+    already in the cart, in a category the mandate allows, and priced (at
+    quantity 1) within the mandate's remaining headroom.
+
+    This filtering is deterministic, not left to the LLM's judgment: without
+    it, generate_candidates previously ranked every in-stock product purely
+    by "value add," with no visibility into the mandate's real category/
+    budget constraints -- it could rank its full 3 attempts on candidates
+    that were always going to be rejected downstream (wrong category, or
+    priced above what's left of the cap), even when a smaller, in-category,
+    in-budget candidate sat in the very same catalog the whole time.
+    """
 
     async def search_relevant_products(state: MerchantAgentState) -> dict:
         all_products = await tools.search_products(session, state["merchant_id"])
         cart_product_ids = {item["product_id"] for item in state["original_cart"]["items"]}
-        candidates = [p.model_dump(mode="json") for p in all_products if p.product_id not in cart_product_ids]
+        allowed_categories = set(state["mandate_allowed_categories"])
+        headroom_minor = state["mandate_max_amount_minor"] - state["original_cart"]["subtotal_minor"]
+        candidates = [
+            p.model_dump(mode="json")
+            for p in all_products
+            if p.product_id not in cart_product_ids
+            and p.category in allowed_categories
+            and p.price_minor <= headroom_minor
+        ]
         return {"candidate_products": candidates}
 
     return search_relevant_products
@@ -118,10 +139,15 @@ def make_generate_candidates_node():
         if not in_stock:
             return {"ranked_candidates": []}
 
+        headroom_minor = state["mandate_max_amount_minor"] - state["original_cart"]["subtotal_minor"]
         prompt = (
             f"Current cart (already authorized, do not modify it directly):\n"
             f"{state['original_cart']}\n\n"
-            f"In-stock candidate products you may propose adding:\n"
+            f"The buyer's mandate leaves {headroom_minor} minor currency units of headroom above this "
+            "cart's current subtotal -- every candidate below already fits that headroom at quantity 1, "
+            "but pick a quantity whose total price (unit price x quantity) does not exceed it.\n\n"
+            f"In-stock candidate products you may propose adding (already filtered to this mandate's "
+            f"allowed categories and this remaining headroom):\n"
             f"{in_stock}\n\n"
             "Propose up to 3 ranked upsell/cross-sell candidates from this list "
             "that would genuinely increase basket value for this cart."

@@ -14,10 +14,19 @@ from app.schemas.proposal import ProposalStatus
 
 
 class CheckoutRequest(BaseModel):
-    """Request body for POST /api/checkout/request."""
+    """
+    Request body for POST /api/checkout/request.
+
+    mandate_id is optional (plan.md Phase 2.1): omit it to let AgentPay
+    resolve the cart's own already-approved authorization request (or its
+    already-frozen mandate, on a retry) instead -- see
+    app.services.checkout_service.request_checkout()'s resolution logic.
+    """
 
     cart_id: str
-    mandate_id: str = Field(description='Business-facing mandate_id (e.g. "M-001"), not the internal UUID.')
+    mandate_id: str | None = Field(
+        default=None, description='Business-facing mandate_id (e.g. "M-001"), not the internal UUID. Omit to let AgentPay resolve it from the cart.'
+    )
 
 
 class CompleteCheckoutRequest(BaseModel):

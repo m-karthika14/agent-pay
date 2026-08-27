@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import append_event
 from app.core.constants import CART_STATUS_OPEN
+from app.db.models.authorization_request import AuthorizationRequest, AuthorizationRequestStatus
 from app.db.models.cart import Cart
 from app.db.models.cart_item import CartItem
 from app.db.models.inventory import Inventory
@@ -170,15 +171,24 @@ async def get_cart(session: AsyncSession, cart_id: uuid.UUID) -> CartResponse:
 
 async def get_cart_by_mandate(session: AsyncSession, mandate_row_id: uuid.UUID) -> CartResponse | None:
     """
-    Fetch the cart currently linked to a mandate, if any (plan.md Section
-    10.4-adjacent, added Phase 10: Cart.mandate_id is set once
-    checkout_service.request_checkout() freezes a cart under this mandate).
+    Fetch the cart to show for a mandate being watched (e.g. the AI Activity
+    page's "paste a mandate_id" panel).
 
-    Returns None (rather than raising) before any checkout has been
-    requested yet -- a mandate legitimately has no linked cart between its
-    creation and a buyer agent's first request_checkout() call, so this is
-    a normal state for a live "watch this purchase happen" panel to poll,
-    not an error.
+    First checks Cart.mandate_id (plan.md Section 10.4-adjacent, added Phase
+    10: set once checkout_service.request_checkout() freezes a cart under
+    this mandate). If that's still unset, falls back to the cart behind the
+    Claude-initiated AuthorizationRequest that produced this mandate, if any
+    (plan.md Phase 2/2.1): once a human approves in the popup, the mandate
+    is ACTIVE and signed immediately, but the cart Claude already built stays
+    OPEN and unlinked until Claude's own later request_checkout() call --
+    without this fallback, a real, populated cart is invisible to a human
+    watching that exact (normal, often multi-minute) window.
+
+    Returns None (rather than raising) if neither source has a cart yet --
+    a mandate legitimately has no linked cart at all when it came from the
+    human-authorizes-first flow (plan.md Section 8 -- no cart exists when
+    that mandate is created), so this is a normal state for a live "watch
+    this purchase happen" panel to poll, not an error.
 
     Args:
         session: Active AsyncSession.
@@ -186,11 +196,24 @@ async def get_cart_by_mandate(session: AsyncSession, mandate_row_id: uuid.UUID) 
             business-facing mandate_id string).
 
     Returns:
-        The linked cart, or None if no cart has been frozen under this
-        mandate yet.
+        The linked (or, pre-freeze, the Claude-initiated request's) cart, or
+        None if neither exists yet.
     """
     result = await session.execute(select(Cart).where(Cart.mandate_id == mandate_row_id))
     cart = result.scalar_one_or_none()
+    if cart is not None:
+        return await to_cart_response(session, cart)
+
+    request_result = await session.execute(
+        select(AuthorizationRequest).where(
+            AuthorizationRequest.resulting_mandate_id == mandate_row_id,
+            AuthorizationRequest.status == AuthorizationRequestStatus.APPROVED,
+        )
+    )
+    request = request_result.scalar_one_or_none()
+    if request is None:
+        return None
+    cart = await session.get(Cart, request.cart_id)
     if cart is None:
         return None
     return await to_cart_response(session, cart)
