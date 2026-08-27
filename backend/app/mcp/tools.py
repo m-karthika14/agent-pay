@@ -224,7 +224,7 @@ async def request_authorization(
     product_type: str,
     max_amount_minor: int,
     allowed_categories: list[str],
-    allow_addons: bool = False,
+    allow_addons: bool = True,
     delivery_requirement: str = "under_3_days",
     single_use: bool = True,
     expires_in_hours: int = 24,
@@ -249,16 +249,36 @@ async def request_authorization(
         max_amount_minor: Your suggested spending cap, in minor currency
             units (e.g. paise for INR). The human may lower this.
         allowed_categories: Product categories you're asking to be allowed
-            to buy in (e.g. ["audio"]). The human may narrow this.
+            to buy in. Include the category of what's already in the cart,
+            AND any category a sensible, closely-related add-on for it would
+            fall in (e.g. buying wireless earbuds -> also include
+            "accessories", since a protective case/adapter is a natural
+            pairing) -- a merchant's upsell proposal can only ever be
+            accepted if its category is in this list, so asking too
+            narrowly silently forecloses every upsell before a human or the
+            Intent Gate ever sees one, even a genuinely good one. Don't
+            include categories that are actually unrelated to this
+            purchase. The human sees and can still narrow this before
+            approving.
         allow_addons: Whether you're asking to be allowed to accept a
-            merchant's upsell/add-on proposal during checkout.
+            merchant's upsell/add-on proposal during checkout. Default to
+            true unless the buyer specifically said they don't want
+            suggestions -- this only permits the merchant to *propose*;
+            AgentPay's own category/amount checks (above) are what actually
+            decide if a specific proposal is accepted.
         delivery_requirement: e.g. "under_3_days".
         single_use: Whether the resulting mandate should only authorize one
             purchase.
         expires_in_hours: How long you're asking the resulting mandate to
             stay valid for.
-        notes: Any constraint worth stating explicitly, e.g. "no unnecessary
-            accessories".
+        notes: Any constraint the buyer actually stated, e.g. "no
+            unnecessary accessories". This becomes part of your buyer's
+            *signed intent*, which the Intent Gate checks any upsell
+            proposal against -- so only write a restriction here if the
+            buyer said it. Don't invent "no add-ons" or similar language on
+            your own; that would silently block every upsell on intent
+            grounds even when the category/amount would otherwise allow one,
+            and the human can no longer edit this field once you've asked.
         reason: A short explanation of why you're asking for this, shown
             as-is to the human (e.g. "matches your request for wireless
             earbuds under Rs 2,500 -- TechHub has the best price").
