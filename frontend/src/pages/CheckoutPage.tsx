@@ -75,7 +75,12 @@ export function CheckoutPage() {
         user_name: name ?? undefined,
         merchant_id: cart.merchant_id,
         currency: cart.currency,
-        max_amount_minor: cart.subtotal_minor,
+        // 25% headroom above the cart's own subtotal -- a mandate that caps
+        // out at exactly the cart total leaves zero room for any upsell to
+        // ever mathematically fit, regardless of category permission
+        // (verified live: a real cart hit this exact wall). Comfortably
+        // covers this catalog's real accessory prices (Rs 199-599).
+        max_amount_minor: Math.round(cart.subtotal_minor * 1.25),
         // Always include related add-on categories (e.g. accessories for
         // an audio purchase) and always allow the merchant to propose one
         // -- the Merchant Agent should always get a real chance to try;

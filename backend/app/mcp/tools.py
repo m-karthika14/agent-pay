@@ -246,8 +246,14 @@ async def request_authorization(
         cart_id: The cart this request is for (its user and merchant are
             read from the cart itself).
         product_type: What you're asking to buy, e.g. "wireless earbuds".
-        max_amount_minor: Your suggested spending cap, in minor currency
-            units (e.g. paise for INR). The human may lower this.
+        max_amount_minor: The buyer's actual stated budget ceiling, in minor
+            currency units (e.g. paise for INR) -- e.g. if they said "under
+            3000 rupees", ask for 300000, not the specific item's own price.
+            A cap that exactly equals the cart's current total leaves zero
+            room for any upsell to ever mathematically fit, regardless of
+            what categories you allow below -- always leave real headroom
+            above the cart's own subtotal, up to whatever the buyer actually
+            said they're willing to spend. The human may lower this.
         allowed_categories: Product categories you're asking to be allowed
             to buy in. Include the category of what's already in the cart,
             AND any category a sensible, closely-related add-on for it would

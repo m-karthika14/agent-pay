@@ -113,6 +113,10 @@ export function eventsToConversation(events: AuditEventRecord[], cart?: CartResp
       messages.push(
         base(event, 'claude', merchantName ? `Started shopping at ${merchantName}…` : 'Started a new cart…', 'neutral'),
       )
+    } else if (event.event_type === 'CART_ITEM_ADDED') {
+      const productName = str(payload, 'product_name')
+      const quantity = num(payload, 'quantity')
+      messages.push(base(event, 'claude', `Added ${quantity ?? 1}x ${productName ?? 'an item'} to the cart.`, 'neutral'))
     } else if (event.event_type === 'AUTHORIZATION_REQUESTED') {
       const productType = str(payload, 'product_type')
       const maxAmountMinor = num(payload, 'max_amount_minor')

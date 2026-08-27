@@ -314,6 +314,16 @@ async def add_cart_item(
         raise NotFoundError("PRODUCT_NOT_FOUND", f"No active product with id '{product_id}'.")
 
     await _add_or_merge_item(session, cart, product, quantity)
+
+    await append_event(
+        session,
+        AuditEventInput(
+            event_type="CART_ITEM_ADDED",
+            actor_type="SYSTEM",
+            payload={"cart_id": str(cart.id), "product_id": str(product_id), "product_name": product.name, "quantity": quantity},
+            user_id=str(cart.user_id),
+        ),
+    )
     return await to_cart_response(session, cart)
 
 
