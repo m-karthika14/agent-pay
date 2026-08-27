@@ -293,6 +293,24 @@ async def _run_merchant_advisory(
     agent_result = await run_merchant_agent(session, cart.id, mandate_id)
 
     if agent_result["final_status"] != ProposalStatus.PROPOSAL_ALLOWED:
+        # The agent never got as far as a hard-check-passed proposal to
+        # evaluate against the Intent Gate (no viable candidate, every
+        # candidate it tried failed the agent's own retries, or the
+        # underlying LLM call itself was unavailable -- plan.md Rule 2 fails
+        # closed to no proposal rather than guessing). This is Rule 7's
+        # "rejected proposal is not a failure" outcome, but until now it
+        # left no audit record and no way for the storefront's live
+        # conversation to ever close out the Merchant Agent's turn -- it
+        # just looked like it never finished.
+        await append_event(
+            session,
+            AuditEventInput(
+                event_type="MERCHANT_AGENT_NO_PROPOSAL",
+                actor_type="MERCHANT_AGENT",
+                payload={"cart_id": str(cart.id), "final_status": agent_result["final_status"].value},
+                mandate_id=str(mandate_row.id),
+            ),
+        )
         proposal_outcome = ProposalOutcome(status=agent_result["final_status"])
     elif intent_gate_enabled:
         proposal_outcome = await _evaluate_proposal_via_intent_gate(

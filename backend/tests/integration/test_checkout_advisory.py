@@ -24,10 +24,11 @@ from app.db.models.product import Product
 from app.db.models.user import User
 from app.db.session import get_session_factory
 from app.intent.models import IntentDecisionType, _IntentClassification
-from app.mandates.service import create_mandate
+from app.mandates.service import create_mandate, get_mandate_by_business_id
 from app.policy import reason_codes
 from app.schemas.mandate import MandateIntent, MandatePayload
 from app.schemas.proposal import ProposalStatus
+from app.services.audit_service import get_events_for_mandate
 from app.services.checkout_service import request_checkout
 
 MERCHANT_PATCH_TARGET = "app.agents.merchant.nodes.classify_with_schema"
@@ -109,7 +110,13 @@ def _intent_classification(decision: IntentDecisionType, confidence: float = 0.9
 
 
 async def test_no_candidates_leaves_cart_untouched() -> None:
-    """When the merchant agent has nothing to propose, checkout proceeds with the original cart, untouched."""
+    """
+    When the merchant agent has nothing to propose, checkout proceeds with
+    the original cart, untouched -- and records a MERCHANT_AGENT_NO_PROPOSAL
+    audit event, so the storefront's live conversation has something to
+    close the Merchant Agent's turn with instead of trailing off after
+    "let me check for a good add-on" with no reply ever recorded.
+    """
     fixture = await _build_fixture()
     factory = get_session_factory()
     async with factory() as session:
@@ -117,8 +124,14 @@ async def test_no_candidates_leaves_cart_untouched() -> None:
             result = await request_checkout(session, fixture["cart_id"], fixture["mandate_id"])
         await session.commit()
 
+        mandate_row = await get_mandate_by_business_id(session, fixture["mandate_id"])
+        events = await get_events_for_mandate(session, fixture["mandate_id"])
+
     assert result.proposal.status in (ProposalStatus.NO_PROPOSAL, ProposalStatus.ORIGINAL_CART_RETAINED)
     assert result.cart.subtotal_minor == fixture["original_subtotal"]
+    no_proposal_events = [e for e in events if e.event_type == "MERCHANT_AGENT_NO_PROPOSAL"]
+    assert len(no_proposal_events) == 1
+    assert no_proposal_events[0].mandate_id == str(mandate_row.id)
 
 
 async def test_cap_only_arm_auto_applies_proposal_without_consulting_intent_gate() -> None:

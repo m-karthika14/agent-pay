@@ -144,6 +144,8 @@ export function eventsToConversation(events: AuditEventRecord[], cart?: CartResp
       })
     } else if (event.event_type === 'MERCHANT_AGENT_STARTED') {
       messages.push(base(event, 'merchant', 'Let me check if there is a good add-on for this cart…', 'neutral'))
+    } else if (event.event_type === 'MERCHANT_AGENT_NO_PROPOSAL') {
+      messages.push(base(event, 'merchant', "Nothing seemed like a good fit — I'll keep the cart as is.", 'neutral'))
     } else if (event.event_type === 'MERCHANT_PROPOSAL_CREATED') {
       const proposal = proposalEvidence(payload)
       const price = proposal?.priceMinor !== undefined ? formatCurrency(proposal.priceMinor, 'INR') : ''
