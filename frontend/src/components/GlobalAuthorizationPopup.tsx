@@ -6,8 +6,18 @@
  * shows up on any page, survives a refresh, and clears itself the moment
  * the request is no longer PENDING (approved/rejected from here or from
  * anywhere else).
+ *
+ * Also fires a real browser Notification (the OS-level toast, not just
+ * something rendered inside the page) the moment a new request appears --
+ * so it's noticeable even if this tab is in the background or you're
+ * looking at a different tab in the same browser. This only works while
+ * the browser itself is open with this tab present somewhere and
+ * notification permission has been granted for this site; it cannot reach
+ * a different browser/device or survive the browser being fully closed --
+ * that would need a real Web Push subscription + backend infrastructure,
+ * a deliberately bigger feature this is not.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBuyer } from '../context/BuyerContext'
 import { cartIdStorageKey } from '../context/CartContext'
@@ -21,7 +31,37 @@ import { getMerchantTheme } from '../lib/merchantTheme'
 import type { AuthorizationRequestResponse } from '../types/authorization'
 import type { MerchantResponse } from '../types/merchant'
 
-/** Polls for a pending Claude authorization request and, if one exists, renders the popup card. */
+/** Ask for notification permission once per buyer session, as soon as we know who's logged in. Browsers that require a direct click gesture (e.g. Safari) may silently ignore this -- the in-page popup still works either way. */
+function useNotificationPermission(userId: string | null) {
+  useEffect(() => {
+    if (!userId) return
+    if (typeof Notification === 'undefined') return
+    if (Notification.permission === 'default') void Notification.requestPermission()
+  }, [userId])
+}
+
+/** Fire a real OS-level notification the first time a given request_id is seen as PENDING -- never re-fires for the same request on later polls. */
+function useNewRequestNotification(request: AuthorizationRequestResponse | null) {
+  const notified = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!request) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    if (notified.current.has(request.request_id)) return
+    notified.current.add(request.request_id)
+
+    const notification = new Notification('🤖 Claude wants to buy', {
+      body: `${request.product_type} — up to ${formatCurrency(request.max_amount_minor, 'INR')}`,
+      tag: request.request_id,
+    })
+    notification.onclick = () => {
+      window.focus()
+      notification.close()
+    }
+  }, [request])
+}
+
+/** Polls for a pending Claude authorization request and, if one exists, renders the popup card and fires a browser notification. */
 export function GlobalAuthorizationPopup() {
   const { userId } = useBuyer()
   const { data: merchants } = useMerchants()
@@ -32,6 +72,9 @@ export function GlobalAuthorizationPopup() {
   )
 
   const request = pending.data?.[0] ?? null
+  useNotificationPermission(userId)
+  useNewRequestNotification(request)
+
   if (!request || !merchants) return null
 
   return <PopupCard key={request.request_id} request={request} merchants={merchants} />
