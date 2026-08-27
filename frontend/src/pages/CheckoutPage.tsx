@@ -11,6 +11,7 @@ import { getProduct } from '../services/productApi'
 import { usePolling } from '../hooks/usePolling'
 import { formatCurrency } from '../lib/formatCurrency'
 import { getMerchantTheme } from '../lib/merchantTheme'
+import { relatedCategoriesFor } from '../lib/relatedCategories'
 import { openRazorpayCheckout } from '../lib/razorpay'
 import type { CheckoutResponse } from '../types/checkout'
 
@@ -31,8 +32,6 @@ export function CheckoutPage() {
   const merchantName = merchants?.find((m) => m.slug === merchantSlug)?.name ?? merchantSlug ?? 'AgentPay'
 
   const [phase, setPhase] = useState<Phase>('review')
-  const [notes, setNotes] = useState('')
-  const [allowAddons, setAllowAddons] = useState(false)
   const [mandateId, setMandateId] = useState<string | null>(null)
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -77,13 +76,18 @@ export function CheckoutPage() {
         merchant_id: cart.merchant_id,
         currency: cart.currency,
         max_amount_minor: cart.subtotal_minor,
-        allowed_categories: categories,
-        allow_addons: allowAddons,
+        // Always include related add-on categories (e.g. accessories for
+        // an audio purchase) and always allow the merchant to propose one
+        // -- the Merchant Agent should always get a real chance to try;
+        // AgentPay's own category/amount checks still decide whether any
+        // specific proposal is actually accepted.
+        allowed_categories: [...new Set([...categories, ...relatedCategoriesFor(categories)])],
+        allow_addons: true,
         delivery_requirement: 'under_3_days',
         single_use: true,
         expires_in_hours: 1,
         product_type: productNames.join(', ') || 'general purchase',
-        notes: notes || null,
+        notes: null,
       })
       setMandateId(mandate.mandate_id)
       const result = await requestCheckout(cart.cart_id, mandate.mandate_id)
@@ -149,25 +153,6 @@ export function CheckoutPage() {
 
       {phase === 'review' && (
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-          <label className="block text-sm">
-            <span className="text-slate-600">Notes for the merchant (optional)</span>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="e.g. no unnecessary accessories"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={allowAddons}
-              onChange={(e) => setAllowAddons(e.target.checked)}
-              className="accent-indigo-600"
-            />
-            Allow the merchant to propose add-ons
-          </label>
           <button
             type="button"
             disabled={!email}
