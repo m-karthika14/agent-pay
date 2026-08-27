@@ -94,12 +94,15 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
 
   // "Purchase category" -- the category of what's actually in the cart,
   // never editable (it wouldn't make sense to authorize a mandate that
-  // can't even cover the item being bought). "Related add-ons" is whatever
-  // the request's allowed_categories includes beyond that -- a single
-  // human-legible signal instead of asking someone to parse a raw category
-  // list.
+  // can't even cover the item being bought). Related add-ons are always
+  // allowed, regardless of what Claude itself asked for -- the Merchant
+  // Agent should always get a real chance to propose one; AgentPay's own
+  // amount/category checks (still fully enforced) are what decide whether
+  // any specific proposal is actually accepted, not whether it can be
+  // attempted at all.
   const primaryCategories = [...new Set(cart.data.items.map((item) => item.category))]
-  const relatedAllowed = request.allowed_categories.some((c) => !primaryCategories.includes(c))
+  const related = relatedCategoriesFor(primaryCategories)
+  const approveAsIsCategories = [...new Set([...request.allowed_categories, ...related])]
 
   async function handleReject() {
     setSubmitting(true)
@@ -189,7 +192,9 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
             </div>
             <div className="col-span-2">
               <dt className="text-xs text-slate-400">Related add-ons</dt>
-              <dd className="font-medium text-slate-800">{relatedAllowed ? 'Allowed' : 'Not allowed'}</dd>
+              <dd className="font-medium text-slate-800">
+                {related.length > 0 ? `Always allowed (${related.join(', ')})` : 'None relevant to this purchase'}
+              </dd>
             </div>
           </dl>
         ) : (
@@ -229,7 +234,7 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
               onClick={() =>
                 void handleApprove({
                   maxAmountMinor: request.max_amount_minor,
-                  allowedCategories: request.allowed_categories,
+                  allowedCategories: approveAsIsCategories,
                 })
               }
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium text-white transition disabled:opacity-40 ${theme.primaryButton}`}
@@ -264,11 +269,11 @@ function EditForm({
 
   const [maxAmount, setMaxAmount] = useState(String(request.max_amount_minor / 100))
   // Default, simple mode: a single "allow relevant add-ons" toggle instead
-  // of a raw category checklist -- pre-checked if the original request
-  // already asked for something beyond the purchase category itself.
-  const [allowRelatedAddons, setAllowRelatedAddons] = useState(
-    request.allowed_categories.some((c) => !primaryCategories.includes(c)),
-  )
+  // of a raw category checklist. Always starts checked -- the Merchant
+  // Agent should always get a real chance to propose one, regardless of
+  // what Claude itself happened to ask for. A human can still uncheck it
+  // for this specific approval if they genuinely don't want that.
+  const [allowRelatedAddons, setAllowRelatedAddons] = useState(true)
   // Advanced mode: the full per-category checklist, for anyone who wants
   // precise manual control instead of the derived primary+related set.
   // Category enforcement itself never goes away either way -- this only
