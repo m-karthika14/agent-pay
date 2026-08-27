@@ -26,6 +26,7 @@ import * as cartApi from '../services/cartApi'
 import * as authorizationApi from '../services/authorizationApi'
 import { formatCurrency } from '../lib/formatCurrency'
 import { getMerchantTheme } from '../lib/merchantTheme'
+import { relatedCategoriesFor } from '../lib/relatedCategories'
 import type { AuthorizationRequestResponse } from '../types/authorization'
 import type { MerchantResponse } from '../types/merchant'
 
@@ -90,6 +91,15 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
   const theme = getMerchantTheme(merchant?.slug)
 
   if (dismissed || !cart.data) return null
+
+  // "Purchase category" -- the category of what's actually in the cart,
+  // never editable (it wouldn't make sense to authorize a mandate that
+  // can't even cover the item being bought). "Related add-ons" is whatever
+  // the request's allowed_categories includes beyond that -- a single
+  // human-legible signal instead of asking someone to parse a raw category
+  // list.
+  const primaryCategories = [...new Set(cart.data.items.map((item) => item.category))]
+  const relatedAllowed = request.allowed_categories.some((c) => !primaryCategories.includes(c))
 
   async function handleReject() {
     setSubmitting(true)
@@ -174,14 +184,19 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
               <dd className="font-medium text-slate-800">{formatCurrency(request.max_amount_minor, cart.data.currency)}</dd>
             </div>
             <div>
-              <dt className="text-xs text-slate-400">Categories</dt>
-              <dd className="font-medium text-slate-800 capitalize">{request.allowed_categories.join(', ') || '—'}</dd>
+              <dt className="text-xs text-slate-400">Purchase category</dt>
+              <dd className="font-medium text-slate-800 capitalize">{primaryCategories.join(', ') || '—'}</dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-xs text-slate-400">Related add-ons</dt>
+              <dd className="font-medium text-slate-800">{relatedAllowed ? 'Allowed' : 'Not allowed'}</dd>
             </div>
           </dl>
         ) : (
           <EditForm
             request={request}
             merchantSlug={merchant?.slug}
+            primaryCategories={primaryCategories}
             submitting={submitting}
             onCancel={() => setEditing(false)}
             onSubmit={handleApprove}
@@ -231,20 +246,35 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
 function EditForm({
   request,
   merchantSlug,
+  primaryCategories,
   submitting,
   onCancel,
   onSubmit,
 }: {
   request: AuthorizationRequestResponse
   merchantSlug: string | undefined
+  primaryCategories: string[]
   submitting: boolean
   onCancel: () => void
   onSubmit: (terms: { maxAmountMinor: number; allowedCategories: string[] }) => void
 }) {
   const { data: products } = useProducts(merchantSlug)
-  const categories = [...new Set((products ?? []).map((p) => p.category))].sort()
+  const allCategories = [...new Set((products ?? []).map((p) => p.category))].sort()
+  const related = relatedCategoriesFor(primaryCategories)
 
   const [maxAmount, setMaxAmount] = useState(String(request.max_amount_minor / 100))
+  // Default, simple mode: a single "allow relevant add-ons" toggle instead
+  // of a raw category checklist -- pre-checked if the original request
+  // already asked for something beyond the purchase category itself.
+  const [allowRelatedAddons, setAllowRelatedAddons] = useState(
+    request.allowed_categories.some((c) => !primaryCategories.includes(c)),
+  )
+  // Advanced mode: the full per-category checklist, for anyone who wants
+  // precise manual control instead of the derived primary+related set.
+  // Category enforcement itself never goes away either way -- this only
+  // changes how the human arrives at the allowed_categories list AgentPay
+  // then enforces exactly the same way server-side.
+  const [advanced, setAdvanced] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(request.allowed_categories))
 
   function toggleCategory(category: string) {
@@ -255,6 +285,8 @@ function EditForm({
       return next
     })
   }
+
+  const derivedCategories = allowRelatedAddons ? [...primaryCategories, ...related] : primaryCategories
 
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -269,17 +301,45 @@ function EditForm({
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
       </label>
-      <fieldset>
-        <legend className="text-sm text-slate-600">Allowed categories</legend>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5">
-          {categories.map((category) => (
-            <label key={category} className="flex items-center gap-1.5 text-sm text-slate-700 capitalize">
-              <input type="checkbox" checked={selectedCategories.has(category)} onChange={() => toggleCategory(category)} />
-              {category}
+
+      {!advanced ? (
+        <>
+          <div className="text-sm">
+            <span className="text-slate-600">Purchase category</span>
+            <p className="mt-1 font-medium text-slate-800 capitalize">{primaryCategories.join(', ') || '—'}</p>
+          </div>
+          {related.length > 0 && (
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={allowRelatedAddons} onChange={(e) => setAllowRelatedAddons(e.target.checked)} />
+              Allow relevant add-ons ({related.join(', ')})
             </label>
-          ))}
-        </div>
-      </fieldset>
+          )}
+        </>
+      ) : (
+        <fieldset>
+          <legend className="text-sm text-slate-600">Allowed categories</legend>
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5">
+            {allCategories.map((category) => (
+              <label key={category} className="flex items-center gap-1.5 text-sm text-slate-700 capitalize">
+                <input type="checkbox" checked={selectedCategories.has(category)} onChange={() => toggleCategory(category)} />
+                {category}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      <button
+        type="button"
+        onClick={() => {
+          if (!advanced) setSelectedCategories(new Set(derivedCategories))
+          setAdvanced((prev) => !prev)
+        }}
+        className="text-xs font-medium text-slate-500 underline hover:text-slate-700"
+      >
+        {advanced ? 'Use simple mode' : 'Advanced: choose categories manually'}
+      </button>
+
       <div className="flex gap-2 pt-1">
         <button
           type="button"
@@ -290,11 +350,15 @@ function EditForm({
         </button>
         <button
           type="button"
-          disabled={submitting || selectedCategories.size === 0 || Number(maxAmount) <= 0}
+          disabled={
+            submitting ||
+            Number(maxAmount) <= 0 ||
+            (advanced ? selectedCategories.size === 0 : derivedCategories.length === 0)
+          }
           onClick={() =>
             onSubmit({
               maxAmountMinor: Math.round(Number(maxAmount) * 100),
-              allowedCategories: [...selectedCategories],
+              allowedCategories: advanced ? [...selectedCategories] : derivedCategories,
             })
           }
           className="flex-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40"

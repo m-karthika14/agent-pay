@@ -37,6 +37,7 @@ class CartItemResponse(BaseModel):
     item_id: str
     product_id: str
     product_name: str
+    category: str
     quantity: int
     unit_price_minor: int
     line_total_minor: int

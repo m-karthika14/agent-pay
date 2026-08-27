@@ -7,6 +7,7 @@ export interface CartItemResponse {
   item_id: string
   product_id: string
   product_name: string
+  category: string
   quantity: number
   unit_price_minor: number
   line_total_minor: number

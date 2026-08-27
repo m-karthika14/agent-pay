@@ -40,7 +40,7 @@ async def to_cart_response(session: AsyncSession, cart: Cart) -> CartResponse:
     shape (plan.md rule: reuse existing code instead of duplicating logic).
     """
     result = await session.execute(
-        select(CartItem, Product.name)
+        select(CartItem, Product.name, Product.category)
         .join(Product, Product.id == CartItem.product_id)
         .where(CartItem.cart_id == cart.id)
         .order_by(CartItem.id)
@@ -50,11 +50,12 @@ async def to_cart_response(session: AsyncSession, cart: Cart) -> CartResponse:
             item_id=str(item.id),
             product_id=str(item.product_id),
             product_name=product_name,
+            category=category,
             quantity=item.quantity,
             unit_price_minor=item.unit_price_minor,
             line_total_minor=item.line_total_minor,
         )
-        for item, product_name in result.all()
+        for item, product_name, category in result.all()
     ]
 
     business_mandate_id = None
