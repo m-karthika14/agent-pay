@@ -140,7 +140,7 @@ function EvidencePanel({ evidence, alignRight }: { evidence: NonNullable<Convers
           <p className="font-semibold text-slate-500 uppercase">User mandate</p>
           {evidence.mandate.maxAmountMinor !== undefined && <p>Maximum: {formatCurrency(evidence.mandate.maxAmountMinor, 'INR')}</p>}
           {evidence.mandate.allowedCategories && <p>Allowed categories: {evidence.mandate.allowedCategories.join(', ')}</p>}
-          <p>Add-ons authorized: {evidence.mandate.allowAddons ? 'Yes' : 'No'}</p>
+          {evidence.mandate.allowAddons !== undefined && <p>Add-ons authorized: {evidence.mandate.allowAddons ? 'Yes' : 'No'}</p>}
         </div>
       )}
       {evidence.proposal && (
