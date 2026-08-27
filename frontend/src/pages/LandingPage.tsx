@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { BudgetSettings } from '../components/BudgetSettings'
 import { useBuyer } from '../context/BuyerContext'
 import { useMerchants } from '../hooks/useMerchants'
 import { getMerchantTheme } from '../lib/merchantTheme'
@@ -45,13 +46,16 @@ export function LandingPage() {
           bounded by a spending mandate you set, checked deterministically before a rupee moves.
         </p>
         {userId ? (
-          <div className="flex items-center justify-center gap-3 text-sm">
-            <span className="text-slate-600">
-              Logged in as <span className="font-medium text-slate-900">{name}</span>
-            </span>
-            <button type="button" onClick={logout} className="font-medium text-slate-500 underline hover:text-slate-700">
-              Log out
-            </button>
+          <div className="space-y-3">
+            <div className="flex items-center justify-center gap-3 text-sm">
+              <span className="text-slate-600">
+                Logged in as <span className="font-medium text-slate-900">{name}</span>
+              </span>
+              <button type="button" onClick={logout} className="font-medium text-slate-500 underline hover:text-slate-700">
+                Log out
+              </button>
+            </div>
+            <BudgetSettings userId={userId} />
           </div>
         ) : (
           <Link

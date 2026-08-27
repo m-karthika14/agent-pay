@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import append_event
+from app.budgets.service import get_active_budget
 from app.carts.service import get_cart
 from app.db.models.authorization_request import AuthorizationRequest, AuthorizationRequestStatus
 from app.db.models.cart import Cart
@@ -113,12 +114,27 @@ async def create_authorization_request(
             f"Cart '{cart_id}' already has a pending authorization request; check its status before asking again.",
         )
 
+    # The buyer's own, independently-set AI Shopping Budget (app.budgets.service)
+    # -- a hard ceiling on what Claude may even ask for, set by the human
+    # before Claude requested anything. Checked again in
+    # approve_authorization_request() for defense in depth against an Edit
+    # that raises it back up.
+    budget = await get_active_budget(session, uuid.UUID(cart.user_id))
+    if budget.is_active and input_data.max_amount_minor > budget.max_amount_minor:
+        raise ValidationError(
+            "EXCEEDS_AI_SHOPPING_BUDGET",
+            f"Requested max_amount_minor {input_data.max_amount_minor} exceeds the buyer's AI shopping budget of "
+            f"{budget.max_amount_minor}. Search for a cheaper alternative within that budget, or ask the buyer to "
+            "raise their AI Shopping Budget in the AgentPay app before asking again.",
+        )
+    allow_addons = input_data.allow_addons if not budget.is_active else (input_data.allow_addons and bool(budget.allow_addons))
+
     row = AuthorizationRequest(
         cart_id=cart_id,
         status=AuthorizationRequestStatus.PENDING,
         max_amount_minor=input_data.max_amount_minor,
         allowed_categories=input_data.allowed_categories,
-        allow_addons=input_data.allow_addons,
+        allow_addons=allow_addons,
         delivery_requirement=input_data.delivery_requirement,
         single_use=input_data.single_use,
         expires_in_hours=input_data.expires_in_hours,
@@ -205,6 +221,18 @@ async def approve_authorization_request(
     user = await session.get(User, cart.user_id)
     if user is None:
         raise NotFoundError("USER_NOT_FOUND", f"No user with id '{cart.user_id}'.")
+
+    # Defense in depth: create_authorization_request() already rejected
+    # Claude's own ask above the budget, but a human's Edit form could still
+    # type a number back above it -- the budget is meant to be a hard
+    # ceiling regardless of which side pushes a number past it.
+    budget = await get_active_budget(session, cart.user_id)
+    if budget.is_active and terms.max_amount_minor > budget.max_amount_minor:
+        raise ValidationError(
+            "EXCEEDS_AI_SHOPPING_BUDGET",
+            f"Approved max_amount_minor {terms.max_amount_minor} exceeds the buyer's own AI shopping budget of "
+            f"{budget.max_amount_minor}; lower it to at most the budget ceiling, or raise the budget first.",
+        )
 
     mandate = await create_mandate_from_request(
         session,

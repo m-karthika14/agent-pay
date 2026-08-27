@@ -242,6 +242,15 @@ async def request_authorization(
     request_id to find out what they decided; only once it reports status
     "APPROVED" do you have a real mandate_id to pass to request_checkout().
 
+    If the buyer has set their own "AI Shopping Budget" in the AgentPay app,
+    it is an absolute, independently-enforced ceiling: this call fails
+    outright with EXCEEDS_AI_SHOPPING_BUDGET if max_amount_minor exceeds it,
+    regardless of what you argue for. You cannot request more than that
+    ceiling under any circumstance -- if it fails this way, either look for
+    a cheaper option that fits under the stated budget, or tell the buyer
+    their budget is too low for what they asked for and let them raise it
+    themselves in the app. Never retry the same amount.
+
     Args:
         cart_id: The cart this request is for (its user and merchant are
             read from the cart itself).
@@ -253,7 +262,9 @@ async def request_authorization(
             room for any upsell to ever mathematically fit, regardless of
             what categories you allow below -- always leave real headroom
             above the cart's own subtotal, up to whatever the buyer actually
-            said they're willing to spend. The human may lower this.
+            said they're willing to spend (but never above their AI Shopping
+            Budget, if they've set one -- see above). The human may lower
+            this further.
         allowed_categories: Product categories you're asking to be allowed
             to buy in. Include the category of what's already in the cart,
             AND any category a sensible, closely-related add-on for it would

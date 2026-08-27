@@ -24,10 +24,12 @@ import { useProducts } from '../hooks/useProducts'
 import { usePolling } from '../hooks/usePolling'
 import * as cartApi from '../services/cartApi'
 import * as authorizationApi from '../services/authorizationApi'
+import * as budgetApi from '../services/budgetApi'
 import { formatCurrency } from '../lib/formatCurrency'
 import { getMerchantTheme } from '../lib/merchantTheme'
 import { relatedCategoriesFor } from '../lib/relatedCategories'
 import type { AuthorizationRequestResponse } from '../types/authorization'
+import type { BudgetResponse } from '../types/budget'
 import type { MerchantResponse } from '../types/merchant'
 
 /** Ask for notification permission once per buyer session, as soon as we know who's logged in. Browsers that require a direct click gesture (e.g. Safari) may silently ignore this -- the in-page popup still works either way. */
@@ -69,6 +71,10 @@ export function GlobalAuthorizationPopup() {
     [userId],
     { enabled: !!userId, intervalMs: 3000 },
   )
+  // The buyer's own AI Shopping Budget (plan.md Phase 4, set on the landing
+  // page) -- shown here for context, and what "Approve" defaults to
+  // authorizing up to, rather than just the product's own price.
+  const budget = usePolling(() => budgetApi.getBudget(userId as string), [userId], { enabled: !!userId, intervalMs: 60_000 })
 
   const request = pending.data?.[0] ?? null
   useNotificationPermission(userId)
@@ -76,10 +82,18 @@ export function GlobalAuthorizationPopup() {
 
   if (!request || !merchants) return null
 
-  return <PopupCard key={request.request_id} request={request} merchants={merchants} />
+  return <PopupCard key={request.request_id} request={request} merchants={merchants} budget={budget.data} />
 }
 
-function PopupCard({ request, merchants }: { request: AuthorizationRequestResponse; merchants: MerchantResponse[] }) {
+function PopupCard({
+  request,
+  merchants,
+  budget,
+}: {
+  request: AuthorizationRequestResponse
+  merchants: MerchantResponse[]
+  budget: BudgetResponse | null
+}) {
   const cart = usePolling(() => cartApi.getCart(request.cart_id), [request.cart_id], { intervalMs: 60_000 })
 
   const [editing, setEditing] = useState(false)
@@ -103,6 +117,16 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
   const primaryCategories = [...new Set(cart.data.items.map((item) => item.category))]
   const related = relatedCategoriesFor(primaryCategories)
   const approveAsIsCategories = [...new Set([...request.allowed_categories, ...related])]
+
+  // When the buyer has set their own AI Shopping Budget, "Approve" signs a
+  // mandate up to that full ceiling rather than just the current item's
+  // price -- request.max_amount_minor is always <= the budget already
+  // (create_authorization_request() rejects Claude's ask otherwise), so
+  // this only ever gives more real headroom for a legitimate upsell, never
+  // less. Approving with the Edit form is still how a human deliberately
+  // authorizes LESS than that.
+  const hasActiveBudget = budget !== null && budget.is_active && budget.max_amount_minor !== null
+  const approveAsIsMaxAmount = hasActiveBudget ? (budget!.max_amount_minor as number) : request.max_amount_minor
 
   async function handleReject() {
     setSubmitting(true)
@@ -183,14 +207,20 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
         {!editing ? (
           <dl className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <dt className="text-xs text-slate-400">Max spending</dt>
+              <dt className="text-xs text-slate-400">Requested for this item</dt>
               <dd className="font-medium text-slate-800">{formatCurrency(request.max_amount_minor, cart.data.currency)}</dd>
             </div>
             <div>
               <dt className="text-xs text-slate-400">Purchase category</dt>
               <dd className="font-medium text-slate-800 capitalize">{primaryCategories.join(', ') || '—'}</dd>
             </div>
-            <div className="col-span-2">
+            {hasActiveBudget && (
+              <div>
+                <dt className="text-xs text-slate-400">Your AI shopping budget</dt>
+                <dd className="font-medium text-slate-800">{formatCurrency(approveAsIsMaxAmount, cart.data.currency)}</dd>
+              </div>
+            )}
+            <div className={hasActiveBudget ? '' : 'col-span-2'}>
               <dt className="text-xs text-slate-400">Related add-ons</dt>
               <dd className="font-medium text-slate-800">
                 {related.length > 0 ? `Always allowed (${related.join(', ')})` : 'None relevant to this purchase'}
@@ -200,6 +230,7 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
         ) : (
           <EditForm
             request={request}
+            budget={budget}
             merchantSlug={merchant?.slug}
             primaryCategories={primaryCategories}
             submitting={submitting}
@@ -233,7 +264,7 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
               disabled={submitting}
               onClick={() =>
                 void handleApprove({
-                  maxAmountMinor: request.max_amount_minor,
+                  maxAmountMinor: approveAsIsMaxAmount,
                   allowedCategories: approveAsIsCategories,
                 })
               }
@@ -250,6 +281,7 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
 
 function EditForm({
   request,
+  budget,
   merchantSlug,
   primaryCategories,
   submitting,
@@ -257,6 +289,7 @@ function EditForm({
   onSubmit,
 }: {
   request: AuthorizationRequestResponse
+  budget: BudgetResponse | null
   merchantSlug: string | undefined
   primaryCategories: string[]
   submitting: boolean
@@ -267,7 +300,15 @@ function EditForm({
   const allCategories = [...new Set((products ?? []).map((p) => p.category))].sort()
   const related = relatedCategoriesFor(primaryCategories)
 
-  const [maxAmount, setMaxAmount] = useState(String(request.max_amount_minor / 100))
+  // The buyer's own AI Shopping Budget is a hard ceiling enforced
+  // server-side regardless -- starting the field at that ceiling (rather
+  // than just the item's price) is what makes "approve edited terms" also
+  // default to giving real upsell headroom, per the same reasoning as
+  // "Approve" above; a human can still type something lower here.
+  const budgetCeilingMinor = budget?.is_active && budget.max_amount_minor !== null ? budget.max_amount_minor : null
+  const [maxAmount, setMaxAmount] = useState(
+    String((budgetCeilingMinor ?? request.max_amount_minor) / 100),
+  )
   // Default, simple mode: a single "allow relevant add-ons" toggle instead
   // of a raw category checklist. Always starts checked -- the Merchant
   // Agent should always get a real chance to propose one, regardless of
@@ -305,6 +346,11 @@ function EditForm({
           onChange={(e) => setMaxAmount(e.target.value)}
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
+        {budgetCeilingMinor !== null && (
+          <span className="mt-1 block text-xs text-slate-400">
+            Your AI shopping budget caps this at {formatCurrency(budgetCeilingMinor, 'INR')}.
+          </span>
+        )}
       </label>
 
       {!advanced ? (
@@ -358,6 +404,7 @@ function EditForm({
           disabled={
             submitting ||
             Number(maxAmount) <= 0 ||
+            (budgetCeilingMinor !== null && Math.round(Number(maxAmount) * 100) > budgetCeilingMinor) ||
             (advanced ? selectedCategories.size === 0 : derivedCategories.length === 0)
           }
           onClick={() =>

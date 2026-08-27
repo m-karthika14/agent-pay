@@ -8,7 +8,7 @@ actual spending/intent authorization (plan.md Section 8.1).
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func, text
+from sqlalchemy import Boolean, DateTime, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,6 +30,14 @@ class User(Base):
     # no password yet. app.auth.service claims one for them on first login
     # -- see its docstring.
     password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # The user's own, independently-set "AI Shopping Budget" (all three
+    # null when unset): an absolute ceiling on what a Claude-initiated
+    # authorization_request may ever ask for, enforced in
+    # app.authorization.service -- deliberately separate from any Mandate,
+    # since it exists BEFORE Claude asks for anything, not per-purchase.
+    ai_budget_max_amount_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ai_budget_allow_addons: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    ai_budget_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

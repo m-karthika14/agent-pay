@@ -93,6 +93,11 @@ export function apiPatch<T>(path: string, body: unknown = {}): Promise<T> {
   return apiRequest<T>(path, 'PATCH', body)
 }
 
+/** PUT a JSON body to an AgentPay REST endpoint. */
+export function apiPut<T>(path: string, body: unknown = {}): Promise<T> {
+  return apiRequest<T>(path, 'PUT', body)
+}
+
 /** DELETE an AgentPay REST endpoint. */
 export function apiDelete<T>(path: string): Promise<T> {
   return apiRequest<T>(path, 'DELETE')

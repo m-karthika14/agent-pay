@@ -53,6 +53,14 @@ PROPOSAL_GATEWAY_ERROR = "PROPOSAL_GATEWAY_ERROR"
 # which closes that window at request_checkout() time instead.
 MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART = "MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART"
 
+# --- User-set AI Shopping Budget (Phase 4) ---
+# A user's own, independently-set spending ceiling (app.budgets.service),
+# checked in app.authorization.service.create_authorization_request() (what
+# Claude asks for) AND approve_authorization_request() (what a human's Edit
+# ends up submitting) -- defense in depth, so the budget is a hard ceiling
+# regardless of which side would otherwise push a number above it.
+EXCEEDS_AI_SHOPPING_BUDGET = "EXCEEDS_AI_SHOPPING_BUDGET"
+
 # --- Cart-owned mandate resolution (Phase 2.1) ---
 # request_checkout() can be called with no mandate_id, resolving it from the
 # cart's own state (already-frozen -> its recorded mandate; still OPEN -> the
