@@ -62,11 +62,16 @@ async def search_products(merchant: str | None = None, user_id: str | None = Non
     the buyer's request could be satisfied by more than one merchant (e.g.
     both sell wireless earbuds), leave `merchant` unset so you see every
     merchant's offering together and can compare price/category before
-    choosing -- do not assume one merchant is better without checking. Each
-    result includes the product's id, name, description, price (in minor
-    currency units, e.g. paise for INR), currency, category, which merchant
-    it belongs to (merchant_name/merchant_slug), live stock availability,
-    delivery policy, and return policy.
+    choosing -- do not assume one merchant is better without checking. This
+    result set is the only source of truth for what these merchants sell --
+    never blend in results from a general web search. Once you've compared,
+    choose the single best-matching product yourself and proceed to
+    create_cart()/add_to_cart() -- don't stop to ask the buyer to pick
+    between options; their decision point is authorization, not product
+    selection. Each result includes the product's id, name, description,
+    price (in minor currency units, e.g. paise for INR), currency, category,
+    which merchant it belongs to (merchant_name/merchant_slug), live stock
+    availability, delivery policy, and return policy.
 
     Args:
         merchant: Optional merchant slug (e.g. "techhub") to search only

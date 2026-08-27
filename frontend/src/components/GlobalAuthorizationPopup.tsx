@@ -18,9 +18,7 @@
  * a deliberately bigger feature this is not.
  */
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useBuyer } from '../context/BuyerContext'
-import { cartIdStorageKey } from '../context/CartContext'
 import { useMerchants } from '../hooks/useMerchants'
 import { useProducts } from '../hooks/useProducts'
 import { usePolling } from '../hooks/usePolling'
@@ -81,7 +79,6 @@ export function GlobalAuthorizationPopup() {
 }
 
 function PopupCard({ request, merchants }: { request: AuthorizationRequestResponse; merchants: MerchantResponse[] }) {
-  const navigate = useNavigate()
   const cart = usePolling(() => cartApi.getCart(request.cart_id), [request.cart_id], { intervalMs: 60_000 })
 
   const [editing, setEditing] = useState(false)
@@ -107,18 +104,7 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
     }
   }
 
-  function handleReview() {
-    if (!merchant) return
-    localStorage.setItem(cartIdStorageKey(merchant.slug), request.cart_id)
-    navigate(`/store/${merchant.slug}/cart`)
-  }
-
-  async function handleApprove(terms: {
-    maxAmountMinor: number
-    allowedCategories: string[]
-    allowAddons: boolean
-    notes: string | null
-  }) {
+  async function handleApprove(terms: { maxAmountMinor: number; allowedCategories: string[] }) {
     setSubmitting(true)
     setError(null)
     try {
@@ -126,11 +112,23 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
         product_type: request.product_type,
         max_amount_minor: terms.maxAmountMinor,
         allowed_categories: terms.allowedCategories,
-        allow_addons: terms.allowAddons,
+        // The Merchant Agent is always allowed to PROPOSE -- AgentPay's own
+        // category/amount checks (allowed_categories, max_amount_minor
+        // above) are what actually decide whether a proposal is accepted,
+        // not a separate buyer-facing toggle. allow_addons has never
+        // actually gated anything in the policy engine (only shown in the
+        // audit evidence snapshot), so this doesn't change real behavior --
+        // it just stops asking the human to decide something AgentPay's
+        // hard checks already settle downstream.
+        allow_addons: true,
         delivery_requirement: request.delivery_requirement,
         single_use: request.single_use,
         expires_in_hours: request.expires_in_hours,
-        notes: terms.notes,
+        // Notes aren't human-editable here -- they're Claude's own signed
+        // intent, which the Intent Gate judges upsell proposals against
+        // (plan.md Rule 3); pass through unchanged rather than letting an
+        // edit silently rewrite what was actually asked for.
+        notes: request.notes,
       })
       setDismissed(true)
     } catch (err) {
@@ -179,10 +177,6 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
               <dt className="text-xs text-slate-400">Categories</dt>
               <dd className="font-medium text-slate-800 capitalize">{request.allowed_categories.join(', ') || '—'}</dd>
             </div>
-            <div className="col-span-2">
-              <dt className="text-xs text-slate-400">Add-ons</dt>
-              <dd className="font-medium text-slate-800">{request.allow_addons ? 'Allowed' : 'Not allowed'}</dd>
-            </div>
           </dl>
         ) : (
           <EditForm
@@ -208,14 +202,6 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
             </button>
             <button
               type="button"
-              disabled={submitting || !merchant}
-              onClick={handleReview}
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
-            >
-              Review
-            </button>
-            <button
-              type="button"
               disabled={submitting}
               onClick={() => setEditing(true)}
               className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
@@ -229,8 +215,6 @@ function PopupCard({ request, merchants }: { request: AuthorizationRequestRespon
                 void handleApprove({
                   maxAmountMinor: request.max_amount_minor,
                   allowedCategories: request.allowed_categories,
-                  allowAddons: request.allow_addons,
-                  notes: request.notes,
                 })
               }
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium text-white transition disabled:opacity-40 ${theme.primaryButton}`}
@@ -255,15 +239,13 @@ function EditForm({
   merchantSlug: string | undefined
   submitting: boolean
   onCancel: () => void
-  onSubmit: (terms: { maxAmountMinor: number; allowedCategories: string[]; allowAddons: boolean; notes: string | null }) => void
+  onSubmit: (terms: { maxAmountMinor: number; allowedCategories: string[] }) => void
 }) {
   const { data: products } = useProducts(merchantSlug)
   const categories = [...new Set((products ?? []).map((p) => p.category))].sort()
 
   const [maxAmount, setMaxAmount] = useState(String(request.max_amount_minor / 100))
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(request.allowed_categories))
-  const [allowAddons, setAllowAddons] = useState(request.allow_addons)
-  const [notes, setNotes] = useState(request.notes ?? '')
 
   function toggleCategory(category: string) {
     setSelectedCategories((prev) => {
@@ -298,19 +280,6 @@ function EditForm({
           ))}
         </div>
       </fieldset>
-      <label className="flex items-center gap-2 text-sm text-slate-600">
-        <input type="checkbox" checked={allowAddons} onChange={(e) => setAllowAddons(e.target.checked)} />
-        Allow the merchant to propose add-ons
-      </label>
-      <label className="block text-sm">
-        <span className="text-slate-600">Notes (optional)</span>
-        <input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-      </label>
       <div className="flex gap-2 pt-1">
         <button
           type="button"
@@ -326,8 +295,6 @@ function EditForm({
             onSubmit({
               maxAmountMinor: Math.round(Number(maxAmount) * 100),
               allowedCategories: [...selectedCategories],
-              allowAddons,
-              notes: notes || null,
             })
           }
           className="flex-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40"
