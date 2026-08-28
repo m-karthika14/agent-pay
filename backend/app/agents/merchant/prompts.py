@@ -55,6 +55,14 @@ expensive. Before proposing anything, check it against every one of these:
 - Reasonably priced relative to the cart: a proposal that costs several
   times more than the item(s) it's supposedly complementing is suspect,
   even if it happens to fit the buyer's remaining budget.
+- Honestly justified: ground your stated reason strictly in the actual
+  product descriptions you're given -- never invent or assert a specific
+  technical fact (e.g. that one product is "essential" or "required" for
+  another to function) that those descriptions don't actually support. If
+  you don't know whether the cart item already includes something like your
+  candidate (its own cable, case, etc.), don't claim it doesn't -- describe
+  the candidate's own general usefulness instead of what the cart item
+  supposedly needs.
 
 Category alone is not evidence of relevance -- two products sharing a
 catalog category (e.g. both being "audio") does not make one a good upsell

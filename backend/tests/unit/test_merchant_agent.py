@@ -448,3 +448,101 @@ async def test_real_llm_does_not_propose_a_duplicate_primary_product() -> None:
         "The Merchant Agent proposed a second pair of earbuds as an upsell for a cart that already had one -- "
         f"proposal_history was {result['proposal_history']}"
     )
+
+
+_OVERCLAIM_WORDS = ("essential", "required", "necessary", "must have", "needed to")
+
+
+@pytest.mark.skipif(
+    os.environ.get(REAL_LLM_ENV_VAR, "").lower() not in {"1", "true", "yes"},
+    reason=f"Live LLM reasoning check against real Groq -- set {REAL_LLM_ENV_VAR}=1 to run.",
+)
+async def test_real_llm_does_not_overclaim_necessity_beyond_the_product_descriptions() -> None:
+    """
+    Live reported bug, run against the REAL Groq model (not mocked): the
+    Merchant Agent justified a USB-C to Lightning cable as "essential for
+    powering" a pair of earbuds -- a specific technical claim neither
+    product's actual description supports (confirmed against the real
+    seeded UrbanNest catalog: the earbuds' description says nothing about
+    what charging accessories it does or doesn't include, and the cable's
+    own description just says it's "a charging cable for USB-C and
+    Lightning devices," not that it's required for anything).
+
+    This test mirrors that exact scenario -- deliberately bare, unrelated
+    product descriptions that support NO claim of necessity either way --
+    and asserts that if the cable-like candidate is proposed at all, its
+    stated reason doesn't overclaim necessity language the descriptions
+    never actually said (plan.md Phase 4.8's "honestly justified" criterion).
+    """
+    factory = get_session_factory()
+    unique = uuid.uuid4().hex[:8]
+    async with factory() as session:
+        merchant = Merchant(slug=f"agent-honest-test-{unique}", name="Agent Honesty Test Merchant", currency="INR")
+        user = User(email=f"agent-honest-test-{unique}@agentpay.test", name="Agent Honesty Test User")
+        session.add_all([merchant, user])
+        await session.flush()
+
+        earbuds_in_cart = Product(
+            merchant_id=merchant.id, sku=f"EARBUDS-{unique}", name="Flagship Wireless Earbuds", description=(
+                "Flagship wireless earbuds tuned for studio-quality sound and all-day battery life."
+            ),
+            price_minor=799_900, currency="INR", category="audio", is_active=True,
+        )
+        cable = Product(
+            merchant_id=merchant.id, sku=f"CABLE-{unique}", name="USB-C to Lightning Cable", description=(
+                "Dual-connector charging cable for USB-C and Lightning devices."
+            ),
+            price_minor=59_900, currency="INR", category="accessories", is_active=True,
+        )
+        case = Product(
+            merchant_id=merchant.id, sku=f"CASE-{unique}", name="Protective Earbuds Case", description=(
+                "Silicone protective case designed for true wireless earbuds."
+            ),
+            price_minor=29_900, currency="INR", category="accessories", is_active=True,
+        )
+        session.add_all([earbuds_in_cart, cable, case])
+        await session.flush()
+        session.add_all(
+            [
+                Inventory(product_id=earbuds_in_cart.id, quantity=10),
+                Inventory(product_id=cable.id, quantity=10),
+                Inventory(product_id=case.id, quantity=10),
+            ]
+        )
+        await session.commit()
+
+        payload = MandatePayload(
+            mandate_id=f"M-agent-honest-test-{unique}",
+            merchant_id=str(merchant.id),
+            currency="INR",
+            max_amount=999_900,
+            allowed_categories=["audio", "accessories"],
+            allow_addons=True,
+            delivery_requirement="under_3_days",
+            single_use=True,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+            intent=MandateIntent(product_type="wireless earbuds"),
+        )
+        await create_mandate(session, payload, user.id, merchant.id)
+        await session.commit()
+
+        cart = await create_cart(session, user.id, merchant.id, "INR")
+        await add_cart_item(session, uuid.UUID(cart.cart_id), earbuds_in_cart.id, 1)
+        await session.commit()
+
+        await request_checkout(session, uuid.UUID(cart.cart_id), payload.mandate_id)
+        await session.commit()
+
+        result = await run_merchant_agent(
+            session, uuid.UUID(cart.cart_id), payload.mandate_id, payload.max_amount, payload.allowed_categories
+        )
+        await session.commit()
+
+    cable_proposals = [
+        entry for entry in result["proposal_history"] if entry["proposal"]["product_id"] == str(cable.id)
+    ]
+    for entry in cable_proposals:
+        reason = entry["proposal"]["reason"].lower()
+        assert not any(word in reason for word in _OVERCLAIM_WORDS), (
+            f"The Merchant Agent overclaimed necessity not supported by either product's description: {reason!r}"
+        )

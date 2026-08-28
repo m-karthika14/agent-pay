@@ -61,13 +61,31 @@ class _CandidateProposalList(BaseModel):
 
 
 def make_analyze_cart_node(session: AsyncSession):
-    """Build the analyze_cart node: load the cart being checked out."""
+    """Build the analyze_cart node: load the cart being checked out, with each item's real product description."""
 
     async def analyze_cart(state: MerchantAgentState) -> dict:
         cart = await tools.get_cart(session, state["cart_id"])
         merchant_name = await tools.get_merchant_name(session, cart.merchant_id)
+        # CartResponse's own items carry only name/category/price -- fetch
+        # each one's real product description too, so generate_candidates
+        # can ground its reasoning in actual catalog facts about what the
+        # buyer is already purchasing, not just its name and category.
+        cart_item_details = []
+        for item in cart.items:
+            product = await tools.get_product(session, item.product_id)
+            cart_item_details.append(
+                {
+                    "product_id": item.product_id,
+                    "name": product.name,
+                    "category": product.category,
+                    "description": product.description,
+                    "quantity": item.quantity,
+                    "unit_price_minor": item.unit_price_minor,
+                }
+            )
         return {
             "original_cart": cart.model_dump(mode="json"),
+            "cart_item_details": cart_item_details,
             "merchant_id": cart.merchant_id,
             "merchant_name": merchant_name,
         }
@@ -141,20 +159,29 @@ def make_generate_candidates_node():
 
         headroom_minor = state["mandate_max_amount_minor"] - state["original_cart"]["subtotal_minor"]
         prompt = (
-            f"Current cart (already authorized, do not modify it directly):\n"
-            f"{state['original_cart']}\n\n"
+            f"Current cart (already authorized, do not modify it directly), with each item's real "
+            f"product description:\n"
+            f"{state['cart_item_details']}\n\n"
             f"The buyer's mandate leaves {headroom_minor} minor currency units of headroom above this "
             "cart's current subtotal -- every candidate below already fits that headroom at quantity 1, "
             "but pick a quantity whose total price (unit price x quantity) does not exceed it.\n\n"
-            f"In-stock candidate products you may propose adding (already filtered to this mandate's "
-            f"allowed categories and this remaining headroom -- NOT yet filtered for whether they're "
-            f"actually a sensible complement, that judgment is yours):\n"
+            f"In-stock candidate products you may propose adding, each with its own real product "
+            f"description (already filtered to this mandate's allowed categories and this remaining "
+            f"headroom -- NOT yet filtered for whether they're actually a sensible complement, that "
+            f"judgment is yours):\n"
             f"{in_stock}\n\n"
             "Propose up to 3 ranked upsell/cross-sell candidates from this list, ranked by how genuinely "
             "complementary and useful each one is alongside the cart -- not simply by price or category "
             "match. Do not propose a candidate that serves substantially the same primary purpose as "
             "something already in the cart (per your system instructions); skip it and rank the next "
-            "genuinely complementary candidate instead, even if that means proposing fewer than 3."
+            "genuinely complementary candidate instead, even if that means proposing fewer than 3.\n\n"
+            "Ground your stated reason strictly in the product descriptions above -- do not invent or "
+            "assert a specific technical fact (e.g. that one product is 'essential' or 'required' for "
+            "another to function) unless the descriptions actually say so. If you're not certain whether "
+            "the cart item already includes something like the candidate (e.g. its own charging cable or "
+            "case), don't claim it doesn't -- phrase the candidate's benefit in terms of its own general "
+            "usefulness instead (e.g. 'a spare/backup' or 'useful for charging other devices too'), not "
+            "as a claim about what the cart item specifically requires."
         )
         system_instruction = build_merchant_agent_system_prompt(state["merchant_name"])
         try:

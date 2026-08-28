@@ -37,6 +37,16 @@ class MerchantAgentState(TypedDict):
     #: Snapshot of the cart at the start of the run (CartResponse.model_dump()).
     original_cart: dict[str, Any]
 
+    #: The cart's own items, WITH their real product descriptions (CartResponse
+    #: itself carries only name/category/price per item, no description) --
+    #: given to the LLM so it can ground any compatibility/necessity claim in
+    #: what the purchased product's own listing actually says, instead of
+    #: inventing a plausible-sounding technical claim about it (a live
+    #: reported case: the agent asserted a charging cable was "essential for
+    #: powering" a pair of earbuds -- a claim neither product's real
+    #: description supports).
+    cart_item_details: list[dict[str, Any]]
+
     #: Products not already in the cart, candidates for an upsell/cross-sell.
     candidate_products: list[dict[str, Any]]
 

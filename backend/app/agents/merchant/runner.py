@@ -56,6 +56,7 @@ async def run_merchant_agent(
         "mandate_max_amount_minor": mandate_max_amount_minor,
         "mandate_allowed_categories": mandate_allowed_categories,
         "original_cart": {},
+        "cart_item_details": [],
         "candidate_products": [],
         "inventory_results": {},
         "ranked_candidates": [],
