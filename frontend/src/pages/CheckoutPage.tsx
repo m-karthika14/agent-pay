@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { LiveConversation } from '../components/LiveConversation'
 import { useBuyer } from '../context/BuyerContext'
@@ -36,6 +36,10 @@ export function CheckoutPage() {
   const [mandateId, setMandateId] = useState<string | null>(null)
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Guards the auto-authorize effect below to a single attempt per page
+  // visit -- without this, a failed attempt setting phase back to 'review'
+  // would re-trigger the same effect and retry forever.
+  const autoStartedRef = useRef(false)
 
   const activity = usePolling(() => getMandateAuditEvents(mandateId as string), [mandateId], {
     enabled: mandateId !== null,
@@ -43,21 +47,31 @@ export function CheckoutPage() {
   })
 
   useEffect(() => {
-    // Recovers from navigating away and back to /checkout (or a page
-    // refresh) after already authorizing: this page's own `phase` state
-    // resets to 'review' on every mount, but the cart stayed FROZEN on the
-    // backend -- without this, clicking "Authorize purchase" again would
-    // hit IDEMPOTENCY_DUPLICATE on an already-checked-out cart instead of
-    // just picking back up where it left off.
-    if (phase === 'review' && cart && cart.status === 'FROZEN' && cart.mandate_id && cart.frozen_hash && cart.frozen_at) {
+    if (phase !== 'review' || !cart) return
+    if (cart.status === 'FROZEN' && cart.mandate_id && cart.frozen_hash && cart.frozen_at) {
+      // Recovers from navigating away and back to /checkout (or a page
+      // refresh) after already authorizing: this page's own `phase` state
+      // resets to 'review' on every mount, but the cart stayed FROZEN on
+      // the backend -- without this, authorizing again would hit
+      // IDEMPOTENCY_DUPLICATE on an already-checked-out cart instead of
+      // just picking back up where it left off.
       setMandateId(cart.mandate_id)
       setCheckoutResult({ cart, frozen_hash: cart.frozen_hash, frozen_at: cart.frozen_at, proposal: null })
       setPhase('authorized')
+      return
     }
-    // phase intentionally excluded: this should only react to `cart`
+    // "Proceed to checkout" (CartPage) already carries the buyer's intent
+    // to authorize -- landing here starts authorization automatically
+    // rather than waiting for a second, separate click.
+    if (!autoStartedRef.current && email) {
+      autoStartedRef.current = true
+      void handleAuthorize()
+    }
+    // phase intentionally excluded: this should only react to `cart`/`email`
     // becoming available/changing, not re-run every time phase itself
     // changes (which would include changes this same effect just made).
-  }, [cart])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, email])
 
   if (!cart || cart.items.length === 0) {
     return <p className="text-sm text-slate-500">Your cart is empty.</p>
@@ -175,15 +189,16 @@ export function CheckoutPage() {
         </div>
       </div>
 
-      {phase === 'review' && (
+      {phase === 'review' && !error && <p className="text-sm text-slate-500">Preparing checkout…</p>}
+
+      {phase === 'review' && error && (
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
           <button
             type="button"
-            disabled={!email}
             onClick={() => void handleAuthorize()}
-            className={`w-full rounded-md px-4 py-2 text-sm font-medium text-white transition disabled:opacity-40 ${theme.primaryButton}`}
+            className={`w-full rounded-md px-4 py-2 text-sm font-medium text-white transition ${theme.primaryButton}`}
           >
-            Authorize purchase
+            Retry checkout
           </button>
         </div>
       )}

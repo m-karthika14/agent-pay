@@ -207,7 +207,10 @@ function PopupCard({
         {!editing ? (
           <dl className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <dt className="text-xs text-slate-400">Requested for this item</dt>
+              {/* request.max_amount_minor is the spending CAP Claude is asking to be authorized
+                  for -- the item's price plus deliberate headroom for a possible add-on -- never
+                  the item's own price (already shown correctly above, in the cart item list). */}
+              <dt className="text-xs text-slate-400">Claude is requesting up to</dt>
               <dd className="font-medium text-slate-800">{formatCurrency(request.max_amount_minor, cart.data.currency)}</dd>
             </div>
             <div>
