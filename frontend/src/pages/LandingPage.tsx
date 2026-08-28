@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { AutomaticPaymentSettings } from '../components/AutomaticPaymentSettings'
 import { BudgetSettings } from '../components/BudgetSettings'
 import { useBuyer } from '../context/BuyerContext'
 import { useMerchants } from '../hooks/useMerchants'
@@ -55,7 +56,10 @@ export function LandingPage() {
                 Log out
               </button>
             </div>
-            <BudgetSettings userId={userId} />
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <BudgetSettings userId={userId} />
+              <AutomaticPaymentSettings userId={userId} />
+            </div>
           </div>
         ) : (
           <Link

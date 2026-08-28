@@ -29,4 +29,14 @@ export interface CheckoutSessionResponse {
   razorpay_key_id: string
   amount_minor: number
   currency: string
+  /**
+   * Set only when Automatic Payments (plan.md Phase 5) was attempted for
+   * this order. null means "no active payment authorization, proceed with
+   * the manual Razorpay Checkout exactly as before." "CAPTURED" means the
+   * order is already genuinely paid -- never open Razorpay Checkout at all.
+   * Any other value ("REQUIRES_AUTHENTICATION"/"FAILED"/"INVALID") means
+   * automatic payment did not complete -- the manual flow is the safe
+   * fallback, never a false success.
+   */
+  auto_payment_status: string | null
 }

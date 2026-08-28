@@ -22,6 +22,15 @@ class CheckoutSessionResponse(BaseModel):
     razorpay_key_id: str
     amount_minor: int
     currency: str
+    #: Set only when this call also attempted Automatic Payments (plan.md
+    #: Phase 5) -- None means "no active payment authorization, proceed
+    #: with the existing manual Razorpay Checkout exactly as before."
+    #: "CAPTURED" means the order is already genuinely paid -- the caller
+    #: (browser or Claude via MCP) never needs to open Checkout at all.
+    #: "REQUIRES_AUTHENTICATION"/"FAILED"/"INVALID" all mean automatic
+    #: payment did not complete and the existing manual flow is the
+    #: safe fallback -- never a false success.
+    auto_payment_status: str | None = None
 
 
 class TransactionResponse(BaseModel):

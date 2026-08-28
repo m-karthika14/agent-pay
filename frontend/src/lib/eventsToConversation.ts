@@ -195,11 +195,25 @@ export function eventsToConversation(events: AuditEventRecord[], cart?: CartResp
       )
     } else if (event.event_type === 'TRANSACTION_COMPLETED') {
       messages.push(base(event, 'agentpay', '✓ Order complete.', 'approved'))
+    } else if (event.event_type === 'AUTOMATIC_PAYMENT_STARTED') {
+      messages.push(base(event, 'agentpay', '✓ Payment authorization verified — automatic payment initiated…', 'checking'))
+    } else if (event.event_type === 'AUTOMATIC_PAYMENT_AUTHORIZED') {
+      messages.push(base(event, 'agentpay', 'Automatic payment authorized by Razorpay.', 'pass'))
+    } else if (event.event_type === 'AUTOMATIC_PAYMENT_CAPTURED') {
+      messages.push(base(event, 'agentpay', '✓ Automatic payment captured.', 'approved'))
+    } else if (event.event_type === 'AUTOMATIC_PAYMENT_REQUIRES_AUTHENTICATION') {
+      messages.push(base(event, 'agentpay', '⚠️ Payment requires additional authentication — complete it manually to finish.', 'blocked'))
+    } else if (event.event_type === 'AUTOMATIC_PAYMENT_FAILED') {
+      messages.push(
+        base(event, 'agentpay', `❌ Automatic payment did not succeed${event.reason_code ? ` — ${event.reason_code}` : ''}.`, 'blocked'),
+      )
     }
-    // CART_FROZEN, PROPOSAL_REJECTED, MANDATE_CONSUMED, RAZORPAY_EVENT_UNHANDLED: intentionally not
-    // their own bubble. CART_FROZEN/MANDATE_CONSUMED are internal bookkeeping already implied by the
-    // surrounding messages; PROPOSAL_REJECTED always fires alongside INTENT_GATE_BLOCKED/INTENT_ESCALATED,
-    // which already renders both the blocked bubble and the merchant's acknowledgment above.
+    // CART_FROZEN, PROPOSAL_REJECTED, MANDATE_CONSUMED, RAZORPAY_EVENT_UNHANDLED, PAYMENT_AUTHORIZATION_*:
+    // intentionally not their own bubble here. CART_FROZEN/MANDATE_CONSUMED are internal bookkeeping
+    // already implied by the surrounding messages; PROPOSAL_REJECTED always fires alongside
+    // INTENT_GATE_BLOCKED/INTENT_ESCALATED, which already renders both the blocked bubble and the
+    // merchant's acknowledgment above; PAYMENT_AUTHORIZATION_* events describe the separate Automatic
+    // Payments *setup* flow (plan.md Phase 5), not a specific transaction's own conversation.
   }
 
   return messages

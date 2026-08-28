@@ -61,6 +61,18 @@ MANDATE_ALREADY_ASSOCIATED_WITH_ANOTHER_CART = "MANDATE_ALREADY_ASSOCIATED_WITH_
 # regardless of which side would otherwise push a number above it.
 EXCEEDS_AI_SHOPPING_BUDGET = "EXCEEDS_AI_SHOPPING_BUDGET"
 
+# --- Automatic Payments (Phase 5) ---
+# A user's own "Automatic Payments" authorization (app.db.models.
+# payment_authorization.PaymentAuthorization) is a SEPARATE concept from the
+# AI Shopping Budget/Mandate -- these codes are checked by
+# app.payments.authorization_service.execute_authorized_payment(), which only
+# ever runs AFTER every existing mandate/policy/Intent Gate check has already
+# passed and the cart is FROZEN (plan.md's "AI authority AND payment
+# authority, both required" rule).
+PAYMENT_AUTHORIZATION_REQUIRED = "PAYMENT_AUTHORIZATION_REQUIRED"
+PAYMENT_AUTHORIZATION_INVALID = "PAYMENT_AUTHORIZATION_INVALID"
+PAYMENT_BLOCKED_BUDGET_EXCEEDED = "PAYMENT_BLOCKED_BUDGET_EXCEEDED"
+
 # --- Cart-owned mandate resolution (Phase 2.1) ---
 # request_checkout() can be called with no mandate_id, resolving it from the
 # cart's own state (already-frozen -> its recorded mandate; still OPEN -> the
