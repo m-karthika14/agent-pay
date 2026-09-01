@@ -85,11 +85,17 @@ def fetch_order_payments(razorpay_order_id: str) -> list[dict[str, Any]]:
     return client.order.payments(razorpay_order_id)["items"]
 
 
-def create_customer(name: str, email: str) -> dict[str, Any]:
+def create_customer(name: str, email: str, contact: str) -> dict[str, Any]:
     """
     Create (or, if Razorpay already has one for this email, return the
     existing) Razorpay Customer -- the account a payment token is saved
     against, for Automatic Payments setup (app.payments.authorization_service).
+
+    `contact` (a phone number) is REQUIRED here: Razorpay rejects a
+    recurring-token registration order for a customer with no contact
+    ("The contact field is required for recurring links"). When an existing
+    customer is found for this email but has no contact on file, it is
+    patched with `customer.edit()` so the subsequent order still succeeds.
 
     Verified live against a real Razorpay Test Mode account: a duplicate
     Customer.create() call for an already-registered email raises
@@ -104,9 +110,12 @@ def create_customer(name: str, email: str) -> dict[str, Any]:
     Args:
         name: The buyer's display name.
         email: The buyer's email -- Razorpay's own de-duplication key.
+        contact: The buyer's phone number -- required by Razorpay for the
+            recurring registration order that follows.
 
     Returns:
-        The raw Razorpay customer dict (contains "id", "name", "email").
+        The raw Razorpay customer dict (contains "id", "name", "email",
+        "contact").
 
     Raises:
         The original SDK exception, if the create failed for a reason other
@@ -114,13 +123,17 @@ def create_customer(name: str, email: str) -> dict[str, Any]:
     """
     client = get_razorpay_client()
     try:
-        return client.customer.create({"name": name, "email": email})
+        return client.customer.create({"name": name, "email": email, "contact": contact})
     except Exception as exc:  # noqa: BLE001 -- see docstring: this SDK's BadRequestError carries no structured body
         if "already exists" not in str(exc).lower():
             raise
         existing = next((c for c in client.customer.all({"count": 100})["items"] if c.get("email") == email), None)
         if existing is None:
             raise
+        if not existing.get("contact"):
+            # A pre-existing customer with no contact would fail the
+            # recurring order downstream -- backfill it now.
+            existing = client.customer.edit(existing["id"], {"contact": contact})
         return existing
 
 
@@ -149,18 +162,14 @@ def create_recurring_registration_order(
       ("recurring is/are not required and should not be sent") -- omitted
       here; `method: "card"` + a `token` block alone is what this account's
       API actually expects to mark an order as a token-registration order.
-    - With the fields above (and no `recurring` flag), this account's API
-      still responded "The contact field is required for recurring links";
-      adding `contact`/`email` at the order level then flipped to "contact
-      is/are not required and should not be sent" -- these two responses
-      contradict each other, which was not resolved within this session.
-      This strongly suggests this specific Test Mode account does not have
-      Razorpay's Recurring Payments feature enabled (a business-level
-      capability Razorpay grants, not something a bare API key unlocks) --
-      its validation logic for a feature it doesn't have active appears to
-      produce inconsistent error text rather than a single clear "not
-      enabled" message. See the Phase 5 final report for what this means
-      end-to-end and what Razorpay-side action would resolve it.
+    - "The contact field is required for recurring links" means the
+      Razorpay *Customer* (`customer_id`) has no phone number on file --
+      NOT that contact/email belongs in this order payload (adding it here
+      is rejected with "contact is/are not required and should not be
+      sent"). The fix is upstream: create_customer() now always attaches a
+      contact, so the customer this order references already has one.
+      Verified live in Test Mode -- with a contact-bearing customer this
+      exact payload returns a real order (status "created").
 
     Args:
         amount_minor: The registration transaction's own amount (the first
@@ -176,9 +185,10 @@ def create_recurring_registration_order(
         The raw Razorpay order dict.
 
     Raises:
-        razorpay.errors.BadRequestError: If this Razorpay account does not
-            support this order shape (see the note above) -- surfaces to
-            the setup caller as a real, honest failure, never faked success.
+        razorpay.errors.BadRequestError: If Razorpay rejects the order
+            (e.g. the referenced customer has no contact, or the account
+            lacks recurring card payments) -- surfaces to the setup caller
+            as a real, honest failure, never faked success.
     """
     client = get_razorpay_client()
     max_amount_minor = max(max_amount_minor, amount_minor)

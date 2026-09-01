@@ -72,6 +72,11 @@ EXCEEDS_AI_SHOPPING_BUDGET = "EXCEEDS_AI_SHOPPING_BUDGET"
 PAYMENT_AUTHORIZATION_REQUIRED = "PAYMENT_AUTHORIZATION_REQUIRED"
 PAYMENT_AUTHORIZATION_INVALID = "PAYMENT_AUTHORIZATION_INVALID"
 PAYMENT_BLOCKED_BUDGET_EXCEEDED = "PAYMENT_BLOCKED_BUDGET_EXCEEDED"
+# The payment provider (Razorpay) rejected an Automatic Payments setup
+# request -- e.g. the account lacks recurring card payments, or the
+# registration order payload was refused. A real, surfaced failure: the
+# frontend shows the provider's reason rather than a generic 500.
+PAYMENT_AUTHORIZATION_SETUP_FAILED = "PAYMENT_AUTHORIZATION_SETUP_FAILED"
 
 # --- Cart-owned mandate resolution (Phase 2.1) ---
 # request_checkout() can be called with no mandate_id, resolving it from the

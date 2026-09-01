@@ -111,7 +111,14 @@ async def create_payment_authorization_setup(
     """
     user = await _get_user_or_raise(session, user_id)
 
-    customer = razorpay_client.create_customer(name=user.name, email=user.email)
+    # Razorpay requires a contact on the customer for the recurring
+    # registration order below. Prefer the user's own phone; fall back to
+    # the configured setup contact (Test Mode) when they have none.
+    customer = razorpay_client.create_customer(
+        name=user.name,
+        email=user.email,
+        contact=user.phone or get_settings().razorpay_setup_contact,
+    )
     customer_id = customer["id"]
 
     # The registration transaction's own amount is the buyer's stated

@@ -36,9 +36,13 @@ from app.api.routes import (
     users,
     webhooks,
 )
+import razorpay.errors as razorpay_errors
+import requests.exceptions as requests_exceptions
+
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.mcp.server import get_mcp_asgi_app, mcp
+from app.policy import reason_codes
 from app.schemas.common import ApiError, ApiErrorResponse, AgentPayError
 
 configure_logging()
@@ -113,3 +117,32 @@ async def agentpay_error_handler(request: Request, exc: AgentPayError) -> JSONRe
         )
     )
     return JSONResponse(status_code=exc.status_code, content=envelope.model_dump())
+
+
+@app.exception_handler(razorpay_errors.BadRequestError)
+@app.exception_handler(razorpay_errors.GatewayError)
+@app.exception_handler(razorpay_errors.ServerError)
+@app.exception_handler(requests_exceptions.RequestException)
+async def razorpay_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Convert a raw Razorpay SDK error (or the underlying HTTP-transport
+    failure from `requests`) into the standard error envelope instead of
+    letting it escape as a bare 500 -- an unhandled 500 is produced
+    outside the CORS middleware, so it reaches the browser with no
+    Access-Control-Allow-Origin header and the frontend can only report it
+    as an opaque "NETWORK_ERROR". Passing the provider's own message
+    through means the UI shows the real reason instead.
+    """
+    is_client_side = isinstance(exc, razorpay_errors.BadRequestError)
+    logger.warning("Razorpay/transport error on %s: %s", request.url.path, exc)
+    envelope = ApiErrorResponse(
+        error=ApiError(
+            code=reason_codes.PAYMENT_AUTHORIZATION_SETUP_FAILED,
+            message=f"Payment provider rejected the request: {exc}"
+            if is_client_side
+            else f"Could not reach the payment provider: {exc}",
+            terminal=is_client_side,
+            retryable=not is_client_side,
+        )
+    )
+    return JSONResponse(status_code=502, content=envelope.model_dump())
