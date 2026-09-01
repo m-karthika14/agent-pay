@@ -363,7 +363,12 @@ async def execute_authorized_payment(session: AsyncSession, cart: Cart, order: O
             customer_id=auth_row.razorpay_customer_id,
             token_id=auth_row.razorpay_token_id,
             email=user.email if user else "",
-            contact="",
+            # Razorpay's Recurring "Charge Payment" API requires a non-empty
+            # contact -- an empty string is rejected with "The contact field
+            # is required", failing every off-session charge regardless of
+            # amount. Use the buyer's own phone, falling back to the
+            # configured setup contact.
+            contact=(user.phone if user and user.phone else get_settings().razorpay_setup_contact),
             description=f"AgentPay automatic purchase (cart {cart.id})",
         )
     except Exception as exc:  # noqa: BLE001 -- Razorpay SDK raises varied error types; never let one crash checkout
