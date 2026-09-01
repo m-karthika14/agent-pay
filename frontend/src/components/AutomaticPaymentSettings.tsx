@@ -105,6 +105,11 @@ function AutomaticPaymentPanel({
         buyerName: name ?? 'AgentPay Buyer',
         buyerEmail: email ?? '',
         storeName: 'AgentPay',
+        // This is the recurring-token registration transaction -- Razorpay
+        // only issues a reusable e-mandate token when Checkout is opened
+        // with recurring:1 and the registration order's customer_id.
+        recurring: true,
+        customerId: setup.razorpay_customer_id,
         onSuccess: (paymentId) => {
           void (async () => {
             try {

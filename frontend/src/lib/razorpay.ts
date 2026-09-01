@@ -20,8 +20,13 @@ interface RazorpayOptions {
   currency: string
   name: string
   order_id: string
-  prefill?: { name?: string; email?: string }
+  prefill?: { name?: string; email?: string; contact?: string }
   theme?: { color?: string }
+  // 1 marks this Checkout as an e-mandate / recurring-token registration.
+  recurring?: 1
+  // The Razorpay Customer the registration order was created against;
+  // required alongside `recurring` for the token to be reusable.
+  customer_id?: string
   handler: (response: RazorpayPaymentResponse) => void
   modal?: { ondismiss?: () => void }
 }
@@ -66,8 +71,20 @@ export async function openRazorpayCheckout(options: {
   currency: string
   buyerName: string
   buyerEmail: string
+  buyerContact?: string
   storeName: string
   themeColor?: string
+  /**
+   * When true, this Checkout is the ONE interactive transaction that
+   * registers a reusable payment token (Automatic Payments setup). Razorpay
+   * only issues an e-mandate / recurring-capable token if Checkout is
+   * opened with `recurring: 1` and the `customer_id` the registration order
+   * was created against -- without them it runs as a plain one-time
+   * payment and the resulting token is rejected by the recurring-charge
+   * API ("No db records found.").
+   */
+  recurring?: boolean
+  customerId?: string
   onSuccess: (paymentId: string) => void
   onFailure: (reason: string) => void
   onDismiss: () => void
@@ -81,8 +98,14 @@ export async function openRazorpayCheckout(options: {
     currency: options.currency,
     name: options.storeName,
     order_id: options.razorpayOrderId,
-    prefill: { name: options.buyerName, email: options.buyerEmail },
+    prefill: {
+      name: options.buyerName,
+      email: options.buyerEmail,
+      ...(options.buyerContact ? { contact: options.buyerContact } : {}),
+    },
     theme: { color: options.themeColor ?? '#0f172a' },
+    ...(options.recurring ? { recurring: 1 } : {}),
+    ...(options.customerId ? { customer_id: options.customerId } : {}),
     handler: (response) => options.onSuccess(response.razorpay_payment_id),
     modal: { ondismiss: options.onDismiss },
   })
