@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     razorpay_key_id: str = Field(default="", alias="RAZORPAY_KEY_ID")
     razorpay_key_secret: str = Field(default="", alias="RAZORPAY_KEY_SECRET")
     razorpay_webhook_secret: str = Field(default="", alias="RAZORPAY_WEBHOOK_SECRET")
+    # Contact number attached to the Razorpay Customer created during
+    # Automatic Payments setup. Razorpay REQUIRES a contact on the customer
+    # for a recurring-token registration order ("The contact field is
+    # required for recurring links"), and the User model carries no phone.
+    # Overridable per-request; this is the fallback used in Test Mode.
+    razorpay_setup_contact: str = Field(default="9000090000", alias="RAZORPAY_SETUP_CONTACT")
 
     # LLM (Groq -- switched from Gemini after its quota was persistently exhausted, Phases 6-11)
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")

@@ -21,6 +21,7 @@ from app.db.models.cart import Cart
 from app.db.models.order import Order
 from app.db.models.transaction import Transaction
 from app.mandates.service import get_mandate_by_business_id
+from app.payments import authorization_service
 from app.payments.razorpay_client import create_order
 from app.schemas.audit import AuditEventInput
 from app.schemas.common import NotFoundError, ValidationError
@@ -40,13 +41,17 @@ def _idempotency_key_for(cart_id: uuid.UUID) -> str:
     return f"complete:{cart_id}"
 
 
-def build_checkout_options(order: Order) -> CheckoutSessionResponse:
+def build_checkout_options(order: Order, auto_payment_status: str | None = None) -> CheckoutSessionResponse:
     """
     Build the exact, minimal set of fields a frontend needs to open Razorpay
     Standard Checkout for an order (plan.md Section 16.2).
 
     Args:
         order: A persisted Order row with razorpay_order_id already set.
+        auto_payment_status: See CheckoutSessionResponse's docstring --
+            None on every existing call site; set only by
+            create_checkout_session() when Automatic Payments (plan.md
+            Phase 5) was attempted for this order.
 
     Returns:
         CheckoutSessionResponse containing only the public Test Mode Key ID
@@ -59,6 +64,7 @@ def build_checkout_options(order: Order) -> CheckoutSessionResponse:
         razorpay_key_id=get_settings().razorpay_key_id,
         amount_minor=order.amount_minor,
         currency=order.currency,
+        auto_payment_status=auto_payment_status,
     )
 
 
@@ -146,4 +152,16 @@ async def create_checkout_session(
         ),
     )
 
-    return build_checkout_options(order)
+    # Automatic Payments (plan.md Phase 5): if this cart's owner has an
+    # active, eligible payment authorization, attempt to execute payment
+    # right here -- the existing manual flow (frontend opens Razorpay
+    # Checkout for the human to pay) is otherwise completely unchanged.
+    # Only ever reached for a FRESHLY-created order (the idempotency check
+    # above already returned early for a retried/duplicate call), so this
+    # can never run twice for the same checkout.
+    auto_payment_status: str | None = None
+    outcome = await authorization_service.execute_authorized_payment(session, cart, order, mandate_row)
+    if outcome != "NO_AUTHORIZATION":
+        auto_payment_status = outcome
+
+    return build_checkout_options(order, auto_payment_status)

@@ -25,6 +25,13 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    # The user's phone number. Nullable: users created via POST /api/users
+    # or the MCP path may not supply one. Used as the Razorpay Customer
+    # contact during Automatic Payments setup (Razorpay requires a contact
+    # for a recurring-token registration order); app.payments.
+    # authorization_service falls back to Settings.razorpay_setup_contact
+    # when this is unset.
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Nullable: users created before the login page existed (e.g. via
     # POST /api/users, still used by Claude/MCP to resolve a user_id) have
     # no password yet. app.auth.service claims one for them on first login

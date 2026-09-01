@@ -8,6 +8,7 @@ import { ApiRequestError } from '../services/apiClient'
 import { getMandateAuditEvents } from '../services/auditApi'
 import { completePurchase, requestCheckout } from '../services/checkoutApi'
 import { createMandate } from '../services/mandateApi'
+import { getPaymentAuthorization } from '../services/paymentAuthorizationApi'
 import { getProduct } from '../services/productApi'
 import { usePolling } from '../hooks/usePolling'
 import { formatCurrency } from '../lib/formatCurrency'
@@ -26,7 +27,7 @@ type Phase = 'review' | 'authorizing' | 'authorized' | 'paying' | 'failed'
 export function CheckoutPage() {
   const { merchantSlug } = useParams<{ merchantSlug: string }>()
   const { cart, clearCart } = useCart()
-  const { email, name } = useBuyer()
+  const { email, name, userId } = useBuyer()
   const { data: merchants } = useMerchants()
   const navigate = useNavigate()
   const theme = getMerchantTheme(merchantSlug)
@@ -40,10 +41,21 @@ export function CheckoutPage() {
   // visit -- without this, a failed attempt setting phase back to 'review'
   // would re-trigger the same effect and retry forever.
   const autoStartedRef = useRef(false)
+  // Same guard for the auto-pay effect further down.
+  const autoPayStartedRef = useRef(false)
 
   const activity = usePolling(() => getMandateAuditEvents(mandateId as string), [mandateId], {
     enabled: mandateId !== null,
     intervalMs: 2000,
+  })
+  // Only used to decide whether to auto-trigger handlePay() below -- never
+  // to change what happens when the human clicks "Pay" manually. Existing
+  // manual checkout (no active payment authorization) must stay untouched:
+  // the Razorpay Checkout widget only ever opens automatically here when
+  // Automatic Payments is genuinely active for this user.
+  const paymentAuth = usePolling(() => getPaymentAuthorization(userId as string), [userId], {
+    enabled: userId !== null,
+    intervalMs: 60_000,
   })
 
   useEffect(() => {
@@ -72,6 +84,19 @@ export function CheckoutPage() {
     // changes (which would include changes this same effect just made).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart, email])
+
+  useEffect(() => {
+    // Once authorized, pay automatically too -- but ONLY when this user has
+    // an active payment authorization; otherwise the "Pay" button stays a
+    // required manual click, exactly as it always has (plan.md Phase 5:
+    // never alter existing manual checkout for users who haven't opted in).
+    if (phase !== 'authorized' || !checkoutResult) return
+    if (!paymentAuth.data?.is_active) return
+    if (autoPayStartedRef.current) return
+    autoPayStartedRef.current = true
+    void handlePay()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, checkoutResult, paymentAuth.data])
 
   if (!cart || cart.items.length === 0) {
     return <p className="text-sm text-slate-500">Your cart is empty.</p>
@@ -143,6 +168,14 @@ export function CheckoutPage() {
     setError(null)
     try {
       const session = await completePurchase(cart.cart_id, mandateId)
+      if (session.auto_payment_status === 'CAPTURED') {
+        // AgentPay already executed payment automatically (plan.md Phase
+        // 5) -- the order is genuinely paid, no manual Razorpay Checkout
+        // needed at all.
+        clearCart()
+        navigate(`/order/${session.order_id}?mandate=${mandateId}`)
+        return
+      }
       await openRazorpayCheckout({
         keyId: session.razorpay_key_id,
         razorpayOrderId: session.razorpay_order_id,
