@@ -273,17 +273,17 @@ const PIPELINE: PipelinePhase[] = [
 const THE_BAR = [
   {
     icon: 'eye' as IconName,
-    title: 'Explainable',
+    title: 'Traceable',
     body: 'Every money action is a signed entry in a hash-chained audit log that can be replayed and verified.',
   },
   {
     icon: 'crop' as IconName,
-    title: 'Bounded',
+    title: 'Controlled',
     body: 'Amount, category, and time are fixed by the buyer’s mandate before any agent runs.',
   },
   {
     icon: 'shield-check' as IconName,
-    title: 'Gated',
+    title: 'Authorized',
     body: 'Deterministic code checks each constraint, and a failed automatic charge falls back gracefully instead of failing the order.',
   },
 ]
@@ -472,7 +472,7 @@ export function LandingPage() {
       <section className="mx-auto max-w-3xl">
         <header className="mb-6 text-center">
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">The bar</h2>
-          <p className="mt-2 text-sm text-slate-500">Every money action explainable, bounded, and gated.</p>
+          <p className="mt-2 text-sm text-slate-500">Every money action: traceable, controlled, authorized.</p>
         </header>
 
         <div className="grid gap-4 sm:grid-cols-3">
