@@ -45,7 +45,13 @@ It's deployed — no setup required.
 | **API** | https://agentpay-backend-wd5u.onrender.com/docs |
 | **MCP endpoint** | `https://agentpay-backend-wd5u.onrender.com/mcp` |
 
-1. Open the app and log in (any email + password creates a buyer).
+1. Open the app and log in. A demo buyer is already set up:
+
+   | Email | Password | `user_id` |
+   |---|---|---|
+   | `aarav@agentpay.test` | `Aarav@2026` | `7558932e-53b2-4a14-8667-7afd443ea97f` |
+
+   (Any other email + password also works — it creates a fresh buyer.)
 2. Set an **AI Shopping Budget** and authorize an **automatic payment method**
    — together these are your signed mandate.
 3. Point an AI buyer at the MCP endpoint and let it shop:
@@ -53,7 +59,7 @@ It's deployed — no setup required.
    claude mcp add agentpay --transport http https://agentpay-backend-wd5u.onrender.com/mcp
    ```
    Then, in that agent: *"search AgentPay for wireless earbuds under ₹3000 and buy
-   the best one — my user_id is <the id shown in the app>."*
+   the best one — my user_id is 7558932e-53b2-4a14-8667-7afd443ea97f."*
 4. Approve, edit, or reject the request when it appears in the app, and watch the
    whole boundary run under **AI Activity**.
 
