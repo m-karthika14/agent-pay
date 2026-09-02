@@ -50,8 +50,7 @@ It's deployed — no setup required.
    | Email | Password | `user_id` |
    |---|---|---|
    | `aarav@agentpay.test` | `Aarav@2026` | `7558932e-53b2-4a14-8667-7afd443ea97f` |
-
-   (Any other email + password also works — it creates a fresh buyer.)
+ 
 2. Set an **AI Shopping Budget** and authorize an **automatic payment method**
    — together these are your signed mandate.
 3. Point an AI buyer at the MCP endpoint and let it shop:
