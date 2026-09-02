@@ -135,6 +135,7 @@ class MandateResponse(BaseModel):
     allow_addons: bool
     delivery_requirement: str
     single_use: bool
+    created_at: datetime
     expires_at: datetime
     product_type: str
     notes: str | None

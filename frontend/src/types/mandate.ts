@@ -30,6 +30,7 @@ export interface MandateResponse {
   allow_addons: boolean
   delivery_requirement: string
   single_use: boolean
+  created_at: string
   expires_at: string
   product_type: string
   notes: string | null

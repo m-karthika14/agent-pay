@@ -491,10 +491,10 @@ export function LandingPage() {
       {/* ---- Core rule ---- */}
       <section className="mx-auto max-w-3xl rounded-2xl bg-slate-900 px-6 py-8 text-center">
         <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">The core rule</p>
-        <p className="mx-auto mt-3 max-w-xl text-lg leading-snug font-semibold text-white">
-          LLMs can only <span className="text-rose-300">subtract</span> permission — propose, revise, block, escalate.
-          They can never <span className="text-emerald-300">grant</span> it. Every hard limit is checked by
-          deterministic code.
+        <p className="mt-3 text-2xl font-bold tracking-tight text-white">AI can suggest. Code decides.</p>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-300">
+          LLMs may propose, revise, block, or escalate — but they can never grant spending authority. Every hard
+          limit is enforced by deterministic code.
         </p>
       </section>
 

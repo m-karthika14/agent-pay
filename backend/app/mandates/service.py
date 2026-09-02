@@ -243,6 +243,7 @@ def to_mandate_response(row: Mandate) -> MandateResponse:
         allow_addons=payload.allow_addons,
         delivery_requirement=payload.delivery_requirement,
         single_use=payload.single_use,
+        created_at=row.created_at,
         expires_at=payload.expires_at,
         product_type=payload.intent.product_type,
         notes=payload.intent.notes,
