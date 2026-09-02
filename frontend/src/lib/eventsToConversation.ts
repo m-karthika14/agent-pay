@@ -202,10 +202,24 @@ export function eventsToConversation(events: AuditEventRecord[], cart?: CartResp
     } else if (event.event_type === 'AUTOMATIC_PAYMENT_CAPTURED') {
       messages.push(base(event, 'agentpay', '✓ Automatic payment captured.', 'approved'))
     } else if (event.event_type === 'AUTOMATIC_PAYMENT_REQUIRES_AUTHENTICATION') {
-      messages.push(base(event, 'agentpay', '⚠️ Payment requires additional authentication — complete it manually to finish.', 'blocked'))
-    } else if (event.event_type === 'AUTOMATIC_PAYMENT_FAILED') {
+      const detail = str(payload, 'error') ?? event.reason_code
       messages.push(
-        base(event, 'agentpay', `❌ Automatic payment did not succeed${event.reason_code ? ` — ${event.reason_code}` : ''}.`, 'blocked'),
+        base(
+          event,
+          'agentpay',
+          `⚠️ Payment requires additional authentication — complete it manually to finish.${detail ? ` (${detail})` : ''}`,
+          'blocked',
+        ),
+      )
+    } else if (event.event_type === 'AUTOMATIC_PAYMENT_FAILED') {
+      const detail = str(payload, 'error') ?? event.reason_code
+      messages.push(
+        base(
+          event,
+          'agentpay',
+          `❌ Automatic payment did not succeed${detail ? ` — ${detail}` : ''}. Falling back to manual payment.`,
+          'blocked',
+        ),
       )
     }
     // CART_FROZEN, PROPOSAL_REJECTED, MANDATE_CONSUMED, RAZORPAY_EVENT_UNHANDLED, PAYMENT_AUTHORIZATION_*:
