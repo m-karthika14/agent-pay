@@ -1,25 +1,65 @@
 # AgentPay
 
-**A payments boundary for agent-to-agent commerce.** AgentPay makes a Razorpay
-merchant transactable by any external AI buyer, end to end — while guaranteeing
-every purchase stays inside the spending mandate the human actually signed.
+**The authorization layer for when AI agents spend your money.**
 
-## Why this exists
+Soon the agent that books your travel or restocks your kitchen will hold a payment
+credential and transact on its own. The merchant on the other side will run its
+own agent — one measured on basket size. Nothing today sits between them enforcing
+what *you* actually approved.
 
-AI agents are starting to shop and pay on people's behalf. Emerging protocols —
-UAP, ACP, AP2, x402 — standardise how autonomous agents discover catalogs and
-move money, and the first in-app pilots are live. Merchants will soon have to be
-transactable by buyer agents they neither build nor control.
+Without that boundary, "the agent bought it" becomes an unbounded, unauditable
+liability: an over-budget order, an off-intent add-on, a charge nobody can explain
+after the fact.
 
-That creates a conflict of interest:
+AgentPay is that boundary. The human signs a mandate — amount cap, allowed
+categories, expiry, intent — and **every constraint is enforced by deterministic
+code, not by a model, before a rupee moves.**
 
-- a **buyer agent** optimises for the cheapest cart that satisfies the request;
-- a **merchant's revenue agent** optimises for a larger one.
+### What it guarantees
 
-Nothing in that exchange guarantees the result matches what the shopper
-authorised. AgentPay is the deterministic layer that does: the human signs a
-mandate — amount cap, allowed categories, expiry, intent — and every constraint
-is checked by code, not by a model, before a rupee moves.
+- No purchase exceeds the signed cap or leaves the allowed categories — checked by code, before any LLM runs.
+- A merchant's revenue agent can *propose* an upsell; it can never override the buyer's intent.
+- Every rupee movement is a signed entry in a hash-chained log that can be replayed and verified.
+- Fail closed — unavailable, ambiguous, or low-confidence intent blocks the purchase and escalates to the human.
+
+## Why this matters now
+
+AI agents are already shopping and paying on people's behalf, and the plumbing is
+being standardised fast — UAP, ACP, AP2, x402 — with the first in-app pilots live.
+Merchants will have to accept buyer agents they neither build nor control; buyers
+will have to hand agents a payment method. The missing piece is the part that
+makes that exchange safe: a place where the buyer's signed intent, not the
+merchant's revenue target, decides what actually gets bought.
+
+That gap is the whole problem. A **buyer agent** optimises for the cheapest cart
+that satisfies the request; a **merchant's revenue agent** optimises for a larger
+one. AgentPay is the deterministic referee between them.
+
+## Try it live
+
+It's deployed — no setup required.
+
+| | |
+|---|---|
+| **App** | https://agent-pay-omega.vercel.app |
+| **API** | https://agentpay-backend-wd5u.onrender.com/docs |
+| **MCP endpoint** | `https://agentpay-backend-wd5u.onrender.com/mcp` |
+
+1. Open the app and log in (any email + password creates a buyer).
+2. Set an **AI Shopping Budget** and authorize an **automatic payment method**
+   — together these are your signed mandate.
+3. Point an AI buyer at the MCP endpoint and let it shop:
+   ```bash
+   claude mcp add agentpay --transport http https://agentpay-backend-wd5u.onrender.com/mcp
+   ```
+   Then, in that agent: *"search AgentPay for wireless earbuds under ₹3000 and buy
+   the best one — my user_id is <the id shown in the app>."*
+4. Approve, edit, or reject the request when it appears in the app, and watch the
+   whole boundary run under **AI Activity**.
+
+> The backend is on a free Render instance, so the first request after it's been
+> idle can take 30–60 seconds to wake. Razorpay runs in test mode — no real money
+> moves.
 
 ## Actors
 
@@ -69,6 +109,8 @@ plan.md     Frozen architecture, security rules, and build order — the source 
 ```
 
 ## Running it locally
+
+Only needed for development — the [live demo](#try-it-live) needs none of this.
 
 ### Prerequisites
 
@@ -164,10 +206,12 @@ cd backend && uv run python ../eval/run_both_arms.py
 
 ## Deployment
 
+The running instances above are deployed this way:
+
 - **Backend** — `render.yaml` provisions the FastAPI service and PostgreSQL on
   Render. Set the `sync: false` secrets in the dashboard.
 - **Frontend** — static Vite build (`npm run build`) on Vercel; set
-  `VITE_API_BASE_URL` and `VITE_RAZORPAY_KEY_ID`.
+  `VITE_API_BASE_URL` (the Render backend URL) and `VITE_RAZORPAY_KEY_ID`.
 
 ## Notes
 
