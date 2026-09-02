@@ -11,6 +11,11 @@ keeps the Key Secret's only usage site centralized and auditable, and means
 callers never see raw SDK exceptions without going through this module's
 docstrings about what each call does.
 """
+import base64
+import json
+import logging
+import urllib.error
+import urllib.request
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any
@@ -18,6 +23,8 @@ from typing import Any
 import razorpay
 
 from app.core.config import get_settings
+
+logger = logging.getLogger("agentpay")
 
 
 @lru_cache
@@ -256,19 +263,53 @@ def create_recurring_payment(
         The raw Razorpay payment dict.
     """
     client = get_razorpay_client()
-    return client.payment.createRecurring(
-        {
-            "email": email,
-            "contact": contact,
-            "amount": amount_minor,
-            "currency": currency,
-            "order_id": razorpay_order_id,
-            "customer_id": customer_id,
-            "token": token_id,
-            "recurring": "1",
-            "description": description,
-        }
-    )
+    payload = {
+        "email": email,
+        "contact": contact,
+        "amount": amount_minor,
+        "currency": currency,
+        "order_id": razorpay_order_id,
+        "customer_id": customer_id,
+        "token": token_id,
+        "recurring": "1",
+        "description": description,
+    }
+    try:
+        return client.payment.createRecurring(payload)
+    except Exception as exc:  # noqa: BLE001 -- diagnostic: capture exactly what Razorpay returned, then re-raise
+        diag = _diagnose_recurring_failure(client, payload, exc)
+        logger.error("createRecurring failed: %s", diag)
+        raise RuntimeError(diag) from exc
+
+
+def _diagnose_recurring_failure(client: "razorpay.Client", payload: dict[str, Any], exc: Exception) -> str:
+    """
+    TEMPORARY diagnostic: the SDK's createRecurring has been returning a bare
+    "The requested URL was not found on the server." (404) from one deploy
+    environment but a normal 400 from another, with the same key. Re-issue
+    the identical request over raw HTTP so the audit trail records the exact
+    resolved URL + HTTP status + response body, which the opaque SDK
+    exception hides.
+    """
+    settings = get_settings()
+    sdk_url = f"{client.base_url}{client.payment.base_url}/create/recurring"
+    parts = [f"sdk_err={type(exc).__name__}: {exc}", f"sdk_url={sdk_url}"]
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(sdk_url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    token = base64.b64encode(f"{settings.razorpay_key_id}:{settings.razorpay_key_secret}".encode()).decode()
+    req.add_header("Authorization", f"Basic {token}")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            parts.append(f"raw_status={resp.status} raw_body={resp.read()[:400].decode('utf8', 'replace')}")
+    except urllib.error.HTTPError as http_exc:
+        parts.append(
+            f"raw_status={http_exc.code} raw_url={http_exc.url} "
+            f"raw_body={http_exc.read()[:400].decode('utf8', 'replace')}"
+        )
+    except Exception as raw_exc:  # noqa: BLE001
+        parts.append(f"raw_probe_err={type(raw_exc).__name__}: {raw_exc}")
+    return " | ".join(parts)
 
 
 def capture_payment_if_needed(razorpay_payment_id: str, amount_minor: int) -> dict[str, Any]:

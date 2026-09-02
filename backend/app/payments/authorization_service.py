@@ -378,7 +378,7 @@ async def execute_authorized_payment(session: AsyncSession, cart: Cart, order: O
             AuditEventInput(
                 event_type="AUTOMATIC_PAYMENT_REQUIRES_AUTHENTICATION" if requires_auth else "AUTOMATIC_PAYMENT_FAILED",
                 actor_type="SYSTEM",
-                payload={"order_id": str(order.id), "error": str(exc)[:500]},
+                payload={"order_id": str(order.id), "error": str(exc)[:1500]},
                 decision="BLOCK" if not requires_auth else None,
                 order_id=str(order.id),
                 mandate_id=str(mandate_row.id),
