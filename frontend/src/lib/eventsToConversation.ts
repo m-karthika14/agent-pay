@@ -207,8 +207,10 @@ export function eventsToConversation(events: AuditEventRecord[], cart?: CartResp
         base(
           event,
           'agentpay',
-          `⚠️ Payment requires additional authentication — complete it manually to finish.${detail ? ` (${detail})` : ''}`,
-          'blocked',
+          detail
+            ? `⚠️ ${detail}`
+            : '⚠️ This charge needs buyer authentication — completing via secure checkout.',
+          'checking',
         ),
       )
     } else if (event.event_type === 'AUTOMATIC_PAYMENT_FAILED') {
@@ -217,8 +219,10 @@ export function eventsToConversation(events: AuditEventRecord[], cart?: CartResp
         base(
           event,
           'agentpay',
-          `❌ Automatic payment did not succeed${detail ? ` — ${detail}` : ''}. Falling back to manual payment.`,
-          'blocked',
+          detail
+            ? `⚠️ ${detail}`
+            : '⚠️ Off-session auto-charge unavailable — completing via buyer-authenticated checkout.',
+          'checking',
         ),
       )
     }

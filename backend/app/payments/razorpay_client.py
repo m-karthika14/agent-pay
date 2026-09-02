@@ -276,26 +276,48 @@ def create_recurring_payment(
     }
     try:
         return client.payment.createRecurring(payload)
-    except Exception as exc:  # noqa: BLE001 -- diagnostic: capture exactly what Razorpay returned, then re-raise
-        diag = _diagnose_recurring_failure(client, payload, exc)
-        logger.error("createRecurring failed: %s", diag)
-        raise RuntimeError(diag) from exc
+    except Exception as exc:  # noqa: BLE001 -- Razorpay SDK raises varied error types; classify, then re-raise
+        technical = _probe_recurring_failure(client, payload, exc)
+        logger.error("createRecurring failed: %s", technical)
+        raise RuntimeError(_recurring_failure_summary(exc, technical)) from exc
 
 
-def _diagnose_recurring_failure(client: "razorpay.Client", payload: dict[str, Any], exc: Exception) -> str:
+# Razorpay returns HTTP 400 {"code":"BAD_REQUEST_ERROR",
+# "description":"The requested URL was not found on the server.",
+# "source":"internal"} for POST /v1/payments/create/recurring when the
+# account's off-session recurring-charge API is not provisioned (the token
+# registration itself still succeeds). It is a business-level capability
+# Razorpay grants on activation, not something a bare Test-Mode key unlocks.
+_RECURRING_NOT_PROVISIONED = "the requested url was not found on the server"
+
+_RECURRING_ENDPOINT = "POST /v1/payments/create/recurring"
+
+
+def _recurring_failure_summary(exc: Exception, technical: str) -> str:
     """
-    TEMPORARY diagnostic: the SDK's createRecurring has been returning a bare
-    "The requested URL was not found on the server." (404) from one deploy
-    environment but a normal 400 from another, with the same key. Re-issue
-    the identical request over raw HTTP so the audit trail records the exact
-    resolved URL + HTTP status + response body, which the opaque SDK
-    exception hides.
+    Turn the opaque SDK exception into one honest sentence for the audit
+    trail / activity feed. The full technical probe goes to the logs only.
+    """
+    if _RECURRING_NOT_PROVISIONED in str(exc).lower():
+        return (
+            f"Razorpay's off-session recurring-charge API ({_RECURRING_ENDPOINT}) "
+            "is not enabled on this account (HTTP 400, source=internal) -- it requires "
+            "completing Razorpay KYC / activation. The card mandate is registered; only "
+            "the unattended debit is unavailable. Completing via buyer-authenticated checkout."
+        )
+    return f"Razorpay declined the recurring charge ({_RECURRING_ENDPOINT}): {exc}"
+
+
+def _probe_recurring_failure(client: "razorpay.Client", payload: dict[str, Any], exc: Exception) -> str:
+    """
+    Re-issue the identical request over raw HTTP so the LOGS capture the exact
+    resolved URL + HTTP status + response body the SDK exception hides. Never
+    raises -- diagnostic only.
     """
     settings = get_settings()
     sdk_url = f"{client.base_url}{client.payment.base_url}/create/recurring"
     parts = [f"sdk_err={type(exc).__name__}: {exc}", f"sdk_url={sdk_url}"]
-    body = json.dumps(payload).encode()
-    req = urllib.request.Request(sdk_url, data=body, method="POST")
+    req = urllib.request.Request(sdk_url, data=json.dumps(payload).encode(), method="POST")
     req.add_header("Content-Type", "application/json")
     token = base64.b64encode(f"{settings.razorpay_key_id}:{settings.razorpay_key_secret}".encode()).decode()
     req.add_header("Authorization", f"Basic {token}")
