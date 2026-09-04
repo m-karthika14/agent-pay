@@ -410,6 +410,55 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* ---- Merchants ---- */}
+      <section className="mx-auto max-w-3xl">
+        <header className="mb-6 text-center">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Merchants an AI buyer can shop</h2>
+          <p className="mt-2 text-sm text-slate-500">Exposed as an agent-readable catalog over MCP.</p>
+        </header>
+
+        {loading && <p className="text-center text-sm text-slate-500">Loading merchants…</p>}
+        {error && <p className="text-center text-sm text-red-600">{error.message}</p>}
+
+        {merchants && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {merchants.map((merchant) => {
+              const theme = getMerchantTheme(merchant.slug)
+              return (
+                <div
+                  key={merchant.merchant_id}
+                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+                >
+                  <div className={`h-1.5 bg-linear-to-r ${theme.navGradient}`} />
+                  <div className="flex items-center gap-4 p-5">
+                    <span className={`flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 ${theme.accentText}`}>
+                      <Icon name="store" className="h-6 w-6" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-base font-semibold text-slate-900">{merchant.name}</h3>
+                      <p className="text-xs tracking-wide text-slate-400 uppercase">Electronics</p>
+                    </div>
+                  </div>
+                  {userId && (
+                    <Link
+                      to={`/store/${merchant.slug}`}
+                      className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-sm font-medium text-slate-500 transition group-hover:text-slate-800"
+                    >
+                      Browse catalog
+                      <span aria-hidden>→</span>
+                    </Link>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {!userId && (
+          <p className="mt-4 text-center text-xs text-slate-400">Log in to connect an agent to these merchants.</p>
+        )}
+      </section>
+
       {/* ---- How this was built ---- */}
       <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 px-6 py-14 text-white shadow-sm sm:px-12">
         <div aria-hidden className="pointer-events-none absolute -top-32 -left-16 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl" />
@@ -622,54 +671,6 @@ export function LandingPage() {
         </p>
       </section>
 
-      {/* ---- Merchants ---- */}
-      <section className="mx-auto max-w-3xl">
-        <header className="mb-6 text-center">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Merchants an AI buyer can shop</h2>
-          <p className="mt-2 text-sm text-slate-500">Exposed as an agent-readable catalog over MCP.</p>
-        </header>
-
-        {loading && <p className="text-center text-sm text-slate-500">Loading merchants…</p>}
-        {error && <p className="text-center text-sm text-red-600">{error.message}</p>}
-
-        {merchants && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {merchants.map((merchant) => {
-              const theme = getMerchantTheme(merchant.slug)
-              return (
-                <div
-                  key={merchant.merchant_id}
-                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  <div className={`h-1.5 bg-linear-to-r ${theme.navGradient}`} />
-                  <div className="flex items-center gap-4 p-5">
-                    <span className={`flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 ${theme.accentText}`}>
-                      <Icon name="store" className="h-6 w-6" />
-                    </span>
-                    <div className="min-w-0">
-                      <h3 className="truncate text-base font-semibold text-slate-900">{merchant.name}</h3>
-                      <p className="text-xs tracking-wide text-slate-400 uppercase">Electronics</p>
-                    </div>
-                  </div>
-                  {userId && (
-                    <Link
-                      to={`/store/${merchant.slug}`}
-                      className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-sm font-medium text-slate-500 transition group-hover:text-slate-800"
-                    >
-                      Browse catalog
-                      <span aria-hidden>→</span>
-                    </Link>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {!userId && (
-          <p className="mt-4 text-center text-xs text-slate-400">Log in to connect an agent to these merchants.</p>
-        )}
-      </section>
     </div>
   )
 }
