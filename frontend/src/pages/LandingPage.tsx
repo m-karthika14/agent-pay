@@ -181,12 +181,12 @@ const PIPELINE: PipelinePhase[] = [
       {
         icon: 'shield',
         title: 'Spending mandate',
-        body: 'Category, amount cap, and how long it lasts. The one thing that actually authorizes a purchase.',
+        body: 'Category, amount cap, expiry — the one thing that actually authorizes a purchase.',
       },
       {
         icon: 'card',
         title: 'Automatic payments',
-        body: 'A reusable payment method, authorized once and capped per transaction, so an approved cart can settle unattended.',
+        body: 'Authorized once, capped per transaction — lets an approved cart settle unattended.',
       },
     ],
   },
@@ -200,12 +200,12 @@ const PIPELINE: PipelinePhase[] = [
       {
         icon: 'search',
         title: 'Search & compare',
-        body: 'Any external AI buyer queries the merchant catalog over MCP and picks the best match on price, category, and stock.',
+        body: 'The AI buyer queries the catalog over MCP, matching on price, category, and stock.',
       },
       {
         icon: 'cart',
         title: 'Build the cart',
-        body: 'It assembles exactly what was asked for and brings it back for a decision — nothing is bought yet.',
+        body: 'Assembles exactly what was asked for and brings it back for a decision — nothing is bought yet.',
       },
       {
         icon: 'user-check',
@@ -234,7 +234,7 @@ const PIPELINE: PipelinePhase[] = [
       {
         icon: 'filter',
         title: 'Merchant agent proposes → Intent Gate decides',
-        body: 'The merchant’s revenue agent can propose an upsell or bundle on the cart. An LLM checks it against the mandate and returns allow, block, or escalate — it can only subtract permission.',
+        body: 'The merchant agent may propose an upsell. An LLM checks it against the mandate — allow, block, or escalate. It can only subtract permission.',
         highlight: true,
       },
       {
@@ -259,7 +259,7 @@ const PIPELINE: PipelinePhase[] = [
       {
         icon: 'repeat',
         title: 'Charge',
-        body: 'Automatically against the authorized method when the payment rail supports it — otherwise a one-time authenticated checkout, without breaking the order.',
+        body: 'Auto-charged when the payment rail supports it — otherwise a one-time checkout, without breaking the order.',
       },
       {
         icon: 'check-circle',
@@ -274,7 +274,7 @@ const THE_BAR = [
   {
     icon: 'eye' as IconName,
     title: 'Traceable',
-    body: 'Every money action is a signed entry in a hash-chained audit log that can be replayed and verified.',
+    body: 'Every money action is a signed, hash-chained log entry — replayable and verifiable.',
   },
   {
     icon: 'crop' as IconName,
@@ -284,8 +284,59 @@ const THE_BAR = [
   {
     icon: 'shield-check' as IconName,
     title: 'Authorized',
-    body: 'Deterministic code checks each constraint, and a failed automatic charge falls back gracefully instead of failing the order.',
+    body: 'Deterministic code checks every constraint. A failed auto-charge falls back gracefully — it never fails the order.',
   },
+]
+
+interface BuildStep {
+  number: string
+  icon: IconName
+  accent: string
+  title: string
+  body: string
+  stack: string[]
+}
+
+const BUILD_STEPS: BuildStep[] = [
+  {
+    number: '01',
+    icon: 'store',
+    accent: 'from-indigo-500 to-violet-600',
+    title: 'An agent-ready merchant store',
+    body: 'Not just a website — its catalog and commerce operations are exposed over MCP, so an external AI buyer can discover products, build carts, and transact with it programmatically.',
+    stack: ['React', 'TypeScript', 'Vite', 'Tailwind', 'Python', 'FastAPI', 'PostgreSQL', 'SQLAlchemy'],
+  },
+  {
+    number: '02',
+    icon: 'trending-up',
+    accent: 'from-amber-500 to-orange-600',
+    title: 'A merchant revenue agent',
+    body: 'Works for the merchant — proposes relevant upsells, cross-sells, and bundles to grow order value.',
+    stack: ['LangGraph', 'Groq'],
+  },
+  {
+    number: '03',
+    icon: 'shield-check',
+    accent: 'from-emerald-500 to-teal-600',
+    title: 'AgentPay — the control layer',
+    body: 'Sits between the agents and the payment system, enforcing exactly what the buyer authorized.',
+    stack: ['Ed25519', 'Deterministic policy engine', 'Razorpay'],
+  },
+]
+
+interface BuildFlowNode {
+  icon: IconName
+  label: string
+  accent: string
+}
+
+const BUILD_FLOW: BuildFlowNode[] = [
+  { icon: 'user-check', label: 'AI Buyer', accent: 'from-violet-500 to-violet-600' },
+  { icon: 'store', label: 'Agentic Store', accent: 'from-indigo-500 to-indigo-600' },
+  { icon: 'trending-up', label: 'Merchant Agent', accent: 'from-amber-500 to-amber-600' },
+  { icon: 'shield-check', label: 'AgentPay', accent: 'from-slate-700 to-slate-900' },
+  { icon: 'card', label: 'Razorpay', accent: 'from-emerald-500 to-emerald-600' },
+  { icon: 'check-circle', label: 'Order', accent: 'from-slate-600 to-slate-700' },
 ]
 
 /** AgentPay's dashboard: the problem it addresses, the full purchase pipeline, the buyer's active mandate, and the merchants an AI buyer can shop. */
@@ -295,6 +346,74 @@ export function LandingPage() {
 
   return (
     <div className="space-y-16 pb-12">
+      {/* ---- How this was built ---- */}
+      <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 px-6 py-14 text-white shadow-sm sm:px-12">
+        <div aria-hidden className="pointer-events-none absolute -top-32 -left-16 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-32 -right-16 h-80 w-80 rounded-full bg-emerald-500/20 blur-3xl" />
+
+        <div className="relative mx-auto max-w-4xl space-y-10">
+          <header className="mx-auto max-w-xl space-y-3 text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              How this was built
+            </span>
+            <h2 className="text-2xl font-bold tracking-tight text-balance sm:text-3xl">Three systems, one boundary</h2>
+          </header>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            {BUILD_STEPS.map((step) => (
+              <div key={step.number} className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-white shadow-sm ${step.accent}`}
+                  >
+                    <Icon name={step.icon} className="h-5 w-5" />
+                  </span>
+                  <span className="text-2xl font-bold text-white/10">{step.number}</span>
+                </div>
+                <h3 className="mt-4 text-sm font-semibold text-white">{step.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.body}</p>
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {step.stack.map((tech) => (
+                    <span
+                      key={tech}
+                      className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <p className="mb-5 text-center text-xs font-semibold tracking-wider text-slate-400 uppercase">
+              The complete system
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-y-5">
+              {BUILD_FLOW.map((node, idx) => (
+                <div key={node.label} className="flex items-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <span
+                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-md ${node.accent}`}
+                    >
+                      <Icon name={node.icon} className="h-5.5 w-5.5" />
+                    </span>
+                    <span className="text-xs font-semibold whitespace-nowrap text-white">{node.label}</span>
+                  </div>
+                  {idx < BUILD_FLOW.length - 1 && (
+                    <span aria-hidden className="mx-2 text-lg text-slate-500 sm:mx-3">
+                      →
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ---- Hero ---- */}
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white px-6 py-14 shadow-sm sm:px-12">
         <div aria-hidden className="pointer-events-none absolute -top-24 -right-20 h-72 w-72 rounded-full bg-indigo-200/40 blur-3xl" />
@@ -315,8 +434,7 @@ export function LandingPage() {
           </h1>
 
           <p className="mx-auto max-w-xl text-base leading-relaxed text-slate-500">
-            A buyer agent shops autonomously while a merchant revenue agent finds relevant upsells and bundles.
-            AgentPay enforces the buyer’s spending mandate and validates every transaction before a rupee moves.
+            A buyer agent shops. A merchant agent upsells. AgentPay enforces the mandate before a rupee moves.
           </p>
 
           {userId ? (
@@ -360,20 +478,19 @@ export function LandingPage() {
 
         <div className="space-y-4 text-sm leading-relaxed text-slate-600">
           <p>
-            AI agents are starting to shop and pay for people. New protocols — UAP, ACP, AP2, x402 — make it easy for
-            them to find products and complete a purchase.
+            AI agents are starting to shop and pay for people — new protocols (UAP, ACP, AP2, x402) make it easy.
           </p>
           <p>
-            But a buyer agent pushes for the cheapest cart, and a merchant agent pushes for a bigger one. Nothing in
-            that exchange guarantees the result is what the shopper actually wanted — or allowed.
+            A buyer agent wants the cheapest cart; a merchant agent wants a bigger one. Nothing guarantees the result
+            is what the shopper actually allowed.
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm leading-relaxed text-slate-700">
-          <span className="font-semibold text-slate-900">AgentPay is a security and authorization layer</span> between
-          AI agents and payments. Any external AI buyer can shop a merchant, while every purchase stays inside the
-          buyer’s spending limit, allowed categories, and original intent. If the merchant agent suggests an upsell,
-          AgentPay decides whether it’s allowed — before any money moves.
+          <span className="font-semibold text-slate-900">AgentPay is the security and authorization layer</span>{' '}
+          between them. Any AI buyer can shop a merchant, but every purchase stays inside the buyer’s spending limit,
+          categories, and intent. If the merchant agent suggests an upsell, AgentPay decides — before any money
+          moves.
         </div>
       </section>
 
@@ -392,8 +509,7 @@ export function LandingPage() {
               <h3 className="text-sm font-semibold text-slate-800">Buyer agent</h3>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-slate-500">
-              Works for the shopper. Any external AI agent — searches merchants, compares prices, assembles a cart
-              against the shopper’s brief.
+              Works for the shopper. Searches merchants, compares prices, assembles a cart against the brief.
             </p>
           </div>
 
@@ -403,7 +519,7 @@ export function LandingPage() {
             </span>
             <h3 className="mt-3 text-sm font-semibold text-white">AgentPay is the boundary</h3>
             <p className="mt-2 text-sm leading-relaxed text-slate-300">
-              The merchant agent can propose; the intent gate and deterministic checks decide. An LLM never grants
+              The merchant agent proposes; the Intent Gate and deterministic checks decide. An LLM never grants
               authority.
             </p>
           </div>
@@ -416,8 +532,8 @@ export function LandingPage() {
               <h3 className="text-sm font-semibold text-slate-800">Merchant revenue agent</h3>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-slate-500">
-              Works for the store. Proposes upsells and bundles on the frozen cart to grow order value — advisory
-              only, never applied on its own.
+              Works for the store. Proposes upsells and bundles to grow order value — advisory only, never applied on
+              its own.
             </p>
           </div>
         </div>
@@ -493,8 +609,8 @@ export function LandingPage() {
         <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">The core rule</p>
         <p className="mt-3 text-2xl font-bold tracking-tight text-white">AI can suggest. Code decides.</p>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-300">
-          LLMs may propose, revise, block, or escalate — but they can never grant spending authority. Every hard
-          limit is enforced by deterministic code.
+          LLMs may propose, revise, block, or escalate. They never grant spending authority — every hard limit is
+          enforced by code.
         </p>
       </section>
 
