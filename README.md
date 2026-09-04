@@ -35,6 +35,8 @@ That gap is the whole problem. A **buyer agent** optimises for the cheapest cart
 that satisfies the request; a **merchant's revenue agent** optimises for a larger
 one. AgentPay is the deterministic referee between them.
 
+## Architecture Diagram
+
 ![AgentPay architecture](agentpay.png)
 
 ## Try it live
