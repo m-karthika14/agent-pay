@@ -290,7 +290,7 @@ const THE_BAR = [
 
 interface BuildStep {
   number: string
-  icon: IconName
+  emoji: string
   accent: string
   title: string
   body: string
@@ -300,7 +300,7 @@ interface BuildStep {
 const BUILD_STEPS: BuildStep[] = [
   {
     number: '01',
-    icon: 'store',
+    emoji: '🏬',
     accent: 'from-indigo-500 to-violet-600',
     title: 'An agent-ready merchant store',
     body: 'Not just a website — its catalog and commerce operations are exposed over MCP, so an external AI buyer can discover products, build carts, and transact with it programmatically.',
@@ -308,7 +308,7 @@ const BUILD_STEPS: BuildStep[] = [
   },
   {
     number: '02',
-    icon: 'trending-up',
+    emoji: '📈',
     accent: 'from-amber-500 to-orange-600',
     title: 'A merchant revenue agent',
     body: 'Works for the merchant — proposes relevant upsells, cross-sells, and bundles to grow order value.',
@@ -316,7 +316,7 @@ const BUILD_STEPS: BuildStep[] = [
   },
   {
     number: '03',
-    icon: 'shield-check',
+    emoji: '🛡️',
     accent: 'from-emerald-500 to-teal-600',
     title: 'AgentPay — the control layer',
     body: 'Sits between the agents and the payment system, enforcing exactly what the buyer authorized.',
@@ -325,18 +325,18 @@ const BUILD_STEPS: BuildStep[] = [
 ]
 
 interface BuildFlowNode {
-  icon: IconName
+  emoji: string
   label: string
   accent: string
 }
 
 const BUILD_FLOW: BuildFlowNode[] = [
-  { icon: 'user-check', label: 'AI Buyer', accent: 'from-violet-500 to-violet-600' },
-  { icon: 'store', label: 'Agentic Store', accent: 'from-indigo-500 to-indigo-600' },
-  { icon: 'trending-up', label: 'Merchant Agent', accent: 'from-amber-500 to-amber-600' },
-  { icon: 'shield-check', label: 'AgentPay', accent: 'from-slate-700 to-slate-900' },
-  { icon: 'card', label: 'Razorpay', accent: 'from-emerald-500 to-emerald-600' },
-  { icon: 'check-circle', label: 'Order', accent: 'from-slate-600 to-slate-700' },
+  { emoji: '🤖', label: 'AI Buyer', accent: 'from-violet-500 to-violet-600' },
+  { emoji: '🏬', label: 'Agentic Store', accent: 'from-indigo-500 to-indigo-600' },
+  { emoji: '📈', label: 'Merchant Agent', accent: 'from-amber-500 to-amber-600' },
+  { emoji: '🛡️', label: 'AgentPay', accent: 'from-slate-700 to-slate-900' },
+  { emoji: '💳', label: 'Razorpay', accent: 'from-emerald-500 to-emerald-600' },
+  { emoji: '✅', label: 'Order', accent: 'from-slate-600 to-slate-700' },
 ]
 
 /** AgentPay's dashboard: the problem it addresses, the full purchase pipeline, the buyer's active mandate, and the merchants an AI buyer can shop. */
@@ -346,74 +346,6 @@ export function LandingPage() {
 
   return (
     <div className="space-y-16 pb-12">
-      {/* ---- How this was built ---- */}
-      <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 px-6 py-14 text-white shadow-sm sm:px-12">
-        <div aria-hidden className="pointer-events-none absolute -top-32 -left-16 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-32 -right-16 h-80 w-80 rounded-full bg-emerald-500/20 blur-3xl" />
-
-        <div className="relative mx-auto max-w-4xl space-y-10">
-          <header className="mx-auto max-w-xl space-y-3 text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              How this was built
-            </span>
-            <h2 className="text-2xl font-bold tracking-tight text-balance sm:text-3xl">Three systems, one boundary</h2>
-          </header>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            {BUILD_STEPS.map((step) => (
-              <div key={step.number} className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-white shadow-sm ${step.accent}`}
-                  >
-                    <Icon name={step.icon} className="h-5 w-5" />
-                  </span>
-                  <span className="text-2xl font-bold text-white/10">{step.number}</span>
-                </div>
-                <h3 className="mt-4 text-sm font-semibold text-white">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.body}</p>
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {step.stack.map((tech) => (
-                    <span
-                      key={tech}
-                      className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300"
-                    >
-                      {tech}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-            <p className="mb-5 text-center text-xs font-semibold tracking-wider text-slate-400 uppercase">
-              The complete system
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-y-5">
-              {BUILD_FLOW.map((node, idx) => (
-                <div key={node.label} className="flex items-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <span
-                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-md ${node.accent}`}
-                    >
-                      <Icon name={node.icon} className="h-5.5 w-5.5" />
-                    </span>
-                    <span className="text-xs font-semibold whitespace-nowrap text-white">{node.label}</span>
-                  </div>
-                  {idx < BUILD_FLOW.length - 1 && (
-                    <span aria-hidden className="mx-2 text-lg text-slate-500 sm:mx-3">
-                      →
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ---- Hero ---- */}
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white px-6 py-14 shadow-sm sm:px-12">
         <div aria-hidden className="pointer-events-none absolute -top-24 -right-20 h-72 w-72 rounded-full bg-indigo-200/40 blur-3xl" />
@@ -467,6 +399,76 @@ export function LandingPage() {
               </Link>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* ---- How this was built ---- */}
+      <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 px-6 py-14 text-white shadow-sm sm:px-12">
+        <div aria-hidden className="pointer-events-none absolute -top-32 -left-16 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-32 -right-16 h-80 w-80 rounded-full bg-emerald-500/20 blur-3xl" />
+
+        <div className="relative mx-auto max-w-4xl space-y-10">
+          <header className="mx-auto max-w-xl space-y-3 text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              How this was built
+            </span>
+            <h2 className="text-2xl font-bold tracking-tight text-balance sm:text-3xl">Three systems, one boundary</h2>
+          </header>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            {BUILD_STEPS.map((step) => (
+              <div key={step.number} className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="flex items-center gap-3">
+                  <span
+                    aria-hidden
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-lg shadow-sm ${step.accent}`}
+                  >
+                    {step.emoji}
+                  </span>
+                  <span className="text-2xl font-bold text-white/10">{step.number}</span>
+                </div>
+                <h3 className="mt-4 text-sm font-semibold text-white">{step.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.body}</p>
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {step.stack.map((tech) => (
+                    <span
+                      key={tech}
+                      className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <p className="mb-5 text-center text-xs font-semibold tracking-wider text-slate-400 uppercase">
+              The complete system
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-y-5">
+              {BUILD_FLOW.map((node, idx) => (
+                <div key={node.label} className="flex items-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <span
+                      aria-hidden
+                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br text-xl shadow-md ${node.accent}`}
+                    >
+                      {node.emoji}
+                    </span>
+                    <span className="text-xs font-semibold whitespace-nowrap text-white">{node.label}</span>
+                  </div>
+                  {idx < BUILD_FLOW.length - 1 && (
+                    <span aria-hidden className="mx-2 text-lg text-slate-500 sm:mx-3">
+                      →
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
