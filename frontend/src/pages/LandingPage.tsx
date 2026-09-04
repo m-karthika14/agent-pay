@@ -290,7 +290,7 @@ const THE_BAR = [
 
 interface BuildStep {
   number: string
-  emoji: string
+  icon: IconName
   accent: string
   title: string
   body: string
@@ -300,7 +300,7 @@ interface BuildStep {
 const BUILD_STEPS: BuildStep[] = [
   {
     number: '01',
-    emoji: '🏬',
+    icon: 'store',
     accent: 'from-indigo-500 to-violet-600',
     title: 'An agent-ready merchant store',
     body: 'Not just a website — its catalog and commerce operations are exposed over MCP, so an external AI buyer can discover products, build carts, and transact with it programmatically.',
@@ -308,7 +308,7 @@ const BUILD_STEPS: BuildStep[] = [
   },
   {
     number: '02',
-    emoji: '📈',
+    icon: 'trending-up',
     accent: 'from-amber-500 to-orange-600',
     title: 'A merchant revenue agent',
     body: 'Works for the merchant — proposes relevant upsells, cross-sells, and bundles to grow order value.',
@@ -316,7 +316,7 @@ const BUILD_STEPS: BuildStep[] = [
   },
   {
     number: '03',
-    emoji: '🛡️',
+    icon: 'shield-check',
     accent: 'from-emerald-500 to-teal-600',
     title: 'AgentPay — the control layer',
     body: 'Sits between the agents and the payment system, enforcing exactly what the buyer authorized.',
@@ -325,18 +325,18 @@ const BUILD_STEPS: BuildStep[] = [
 ]
 
 interface BuildFlowNode {
-  emoji: string
+  icon: IconName
   label: string
   accent: string
 }
 
 const BUILD_FLOW: BuildFlowNode[] = [
-  { emoji: '🤖', label: 'AI Buyer', accent: 'from-violet-500 to-violet-600' },
-  { emoji: '🏬', label: 'Agentic Store', accent: 'from-indigo-500 to-indigo-600' },
-  { emoji: '📈', label: 'Merchant Agent', accent: 'from-amber-500 to-amber-600' },
-  { emoji: '🛡️', label: 'AgentPay', accent: 'from-slate-700 to-slate-900' },
-  { emoji: '💳', label: 'Razorpay', accent: 'from-emerald-500 to-emerald-600' },
-  { emoji: '✅', label: 'Order', accent: 'from-slate-600 to-slate-700' },
+  { icon: 'user-check', label: 'AI Buyer', accent: 'from-violet-500 to-violet-600' },
+  { icon: 'store', label: 'Agentic Store', accent: 'from-indigo-500 to-indigo-600' },
+  { icon: 'trending-up', label: 'Merchant Agent', accent: 'from-amber-500 to-amber-600' },
+  { icon: 'shield-check', label: 'AgentPay', accent: 'from-slate-700 to-slate-900' },
+  { icon: 'card', label: 'Razorpay', accent: 'from-emerald-500 to-emerald-600' },
+  { icon: 'check-circle', label: 'Order', accent: 'from-slate-600 to-slate-700' },
 ]
 
 /** AgentPay's dashboard: the problem it addresses, the full purchase pipeline, the buyer's active mandate, and the merchants an AI buyer can shop. */
@@ -421,10 +421,9 @@ export function LandingPage() {
               <div key={step.number} className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
                 <div className="flex items-center gap-3">
                   <span
-                    aria-hidden
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-lg shadow-sm ${step.accent}`}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-white shadow-sm ${step.accent}`}
                   >
-                    {step.emoji}
+                    <Icon name={step.icon} className="h-5 w-5" />
                   </span>
                   <span className="text-2xl font-bold text-white/10">{step.number}</span>
                 </div>
@@ -453,10 +452,9 @@ export function LandingPage() {
                 <div key={node.label} className="flex items-center">
                   <div className="flex flex-col items-center gap-2">
                     <span
-                      aria-hidden
-                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br text-xl shadow-md ${node.accent}`}
+                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-md ${node.accent}`}
                     >
-                      {node.emoji}
+                      <Icon name={node.icon} className="h-5.5 w-5.5" />
                     </span>
                     <span className="text-xs font-semibold whitespace-nowrap text-white">{node.label}</span>
                   </div>
