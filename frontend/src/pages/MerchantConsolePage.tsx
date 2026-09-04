@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom'
 import { EventFeed } from '../components/EventFeed'
 import { MetricCard } from '../components/MetricCard'
 import { StatusBadge } from '../components/StatusBadge'
-import { useConsoleEvents, useConsoleMetrics, useConsoleSummary } from '../hooks/useConsole'
+import { useConsoleEvents, useConsoleSummary } from '../hooks/useConsole'
+// import { useConsoleMetrics } from '../hooks/useConsole' -- unused while the Evaluation section below is commented out
 import { formatCurrency } from '../lib/formatCurrency'
 import { formatDate } from '../lib/formatDate'
 import { getMerchantTheme } from '../lib/merchantTheme'
@@ -14,7 +15,7 @@ import { getMerchantTheme } from '../lib/merchantTheme'
  */
 export function MerchantConsolePage() {
   const summary = useConsoleSummary()
-  const metrics = useConsoleMetrics()
+  // const metrics = useConsoleMetrics()
   const events = useConsoleEvents(15)
 
   return (
@@ -35,6 +36,7 @@ export function MerchantConsolePage() {
         )}
       </section>
 
+      {/*
       <section>
         <h2 className="mb-3 text-sm font-semibold text-slate-700">Evaluation (Phase 10)</h2>
         {metrics.loading && <p className="text-sm text-slate-500">Loading…</p>}
@@ -45,6 +47,7 @@ export function MerchantConsolePage() {
         )}
         {metrics.data?.available && metrics.data.metrics && <MetricsSummary metrics={metrics.data.metrics} />}
       </section>
+      */}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold text-slate-700">Recent Transactions</h2>
@@ -97,12 +100,14 @@ export function MerchantConsolePage() {
   )
 }
 
-/**
+/*
  * Renders the Cap-only vs Intent-aware ceiling-drift comparison from
  * eval/metrics.py's report (plan.md Section 30 Slide 7). `metrics` is a
  * plain, loosely-typed object (see ConsoleMetricsResponse's docstring), so
  * field access here is defensive rather than assuming an exact shape.
- */
+ *
+ * Commented out along with the "Evaluation (Phase 10)" section above.
+ *
 function MetricsSummary({ metrics }: { metrics: Record<string, unknown> }) {
   const ceilingDrift = metrics.ceiling_drift as
     | { cap_only?: { mean_drift?: number | null }; intent_aware?: { mean_drift?: number | null } }
@@ -128,3 +133,4 @@ function MetricsSummary({ metrics }: { metrics: Record<string, unknown> }) {
     </div>
   )
 }
+*/
