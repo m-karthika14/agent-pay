@@ -35,6 +35,8 @@ That gap is the whole problem. A **buyer agent** optimises for the cheapest cart
 that satisfies the request; a **merchant's revenue agent** optimises for a larger
 one. AgentPay is the deterministic referee between them.
 
+![AgentPay architecture](agentpay.png)
+
 ## Try it live
 
 It's deployed — no setup required.
@@ -66,17 +68,16 @@ It's deployed — no setup required.
 > idle can take 30–60 seconds to wake. Razorpay runs in test mode — no real money
 > moves.
 
-## Actors
-
-| Actor | Role |
-|---|---|
-| **Buyer** | A human. Signs a spending mandate; approves, edits, or rejects each purchase. |
-| **Buyer agent** | Any external AI (e.g. Claude over MCP). Searches, compares, builds a cart. Not built here. |
-| **Merchant revenue agent** | The one agent in this repo. Proposes upsells and bundles on a frozen cart — advisory only. |
-| **AgentPay** | The gateway. Verifies the mandate, runs deterministic policy checks, consults the Intent Gate, executes payment. |
-| **Razorpay** | Payment execution (test mode). |
-
 ## How a purchase flows
+
+Five parties sit on this boundary: the **buyer**, a human who signs the mandate
+and approves, edits, or rejects each purchase; the **buyer agent**, any external
+AI (e.g. Claude over MCP) that shops on the buyer's behalf — not built here; the
+**merchant revenue agent**, the one agent in this repo, which proposes upsells
+and bundles on a frozen cart, advisory only; **AgentPay**, the gateway that
+verifies the mandate, runs deterministic policy checks, consults the Intent
+Gate, and executes payment; and **Razorpay**, which executes the payment in
+test mode.
 
 1. **Mandate** — the buyer sets category, amount cap, and expiry. Signed with
    Ed25519. This is the only thing that grants authority.
