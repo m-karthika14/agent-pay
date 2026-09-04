@@ -35,6 +35,8 @@ That gap is the whole problem. A **buyer agent** optimises for the cheapest cart
 that satisfies the request; a **merchant's revenue agent** optimises for a larger
 one. AgentPay is the deterministic referee between them.
 
+## Architecture Diagram
+
 ![AgentPay architecture](agentpay.png)
 
 ## Try it live
@@ -226,4 +228,4 @@ The running instances above are deployed this way:
   which is enabled per account after KYC / activation. Where it isn't available
   the flow falls back to an authenticated checkout — the order still completes,
   and the reason is shown in the activity feed.
-- `plan.md` is the frozen specification. Read it before any structural change.
+
