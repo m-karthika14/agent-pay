@@ -29,6 +29,7 @@ type IconName =
   | 'eye'
   | 'crop'
   | 'store'
+  | 'cpu'
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />,
@@ -128,6 +129,13 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9Z" />
       <path d="m2 9 2-5h16l2 5" />
       <path d="M9 20v-5h6v5" />
+    </>
+  ),
+  cpu: (
+    <>
+      <rect x="7" y="7" width="10" height="10" rx="1.5" />
+      <rect x="10.5" y="10.5" width="3" height="3" />
+      <path d="M9 2.5v3M15 2.5v3M9 18.5v3M15 18.5v3M2.5 9h3M2.5 15h3M18.5 9h3M18.5 15h3" />
     </>
   ),
 }
@@ -301,7 +309,7 @@ const BUILD_STEPS: BuildStep[] = [
   {
     number: '01',
     icon: 'store',
-    accent: 'from-indigo-500 to-violet-600',
+    accent: 'text-indigo-300 ring-indigo-400/30 bg-indigo-400/10',
     title: 'An agent-ready merchant store',
     body: 'Not just a website — its catalog and commerce operations are exposed over MCP, so an external AI buyer can discover products, build carts, and transact with it programmatically.',
     stack: ['React', 'TypeScript', 'Vite', 'Tailwind', 'Python', 'FastAPI', 'PostgreSQL', 'SQLAlchemy'],
@@ -309,7 +317,7 @@ const BUILD_STEPS: BuildStep[] = [
   {
     number: '02',
     icon: 'trending-up',
-    accent: 'from-amber-500 to-orange-600',
+    accent: 'text-amber-300 ring-amber-400/30 bg-amber-400/10',
     title: 'A merchant revenue agent',
     body: 'Works for the merchant — proposes relevant upsells, cross-sells, and bundles to grow order value.',
     stack: ['LangGraph', 'Groq'],
@@ -317,7 +325,7 @@ const BUILD_STEPS: BuildStep[] = [
   {
     number: '03',
     icon: 'shield-check',
-    accent: 'from-emerald-500 to-teal-600',
+    accent: 'text-emerald-300 ring-emerald-400/30 bg-emerald-400/10',
     title: 'AgentPay — the control layer',
     body: 'Sits between the agents and the payment system, enforcing exactly what the buyer authorized.',
     stack: ['Ed25519', 'Deterministic policy engine', 'Razorpay'],
@@ -331,12 +339,12 @@ interface BuildFlowNode {
 }
 
 const BUILD_FLOW: BuildFlowNode[] = [
-  { icon: 'user-check', label: 'AI Buyer', accent: 'from-violet-500 to-violet-600' },
-  { icon: 'store', label: 'Agentic Store', accent: 'from-indigo-500 to-indigo-600' },
-  { icon: 'trending-up', label: 'Merchant Agent', accent: 'from-amber-500 to-amber-600' },
-  { icon: 'shield-check', label: 'AgentPay', accent: 'from-slate-700 to-slate-900' },
-  { icon: 'card', label: 'Razorpay', accent: 'from-emerald-500 to-emerald-600' },
-  { icon: 'check-circle', label: 'Order', accent: 'from-slate-600 to-slate-700' },
+  { icon: 'cpu', label: 'AI Buyer', accent: 'text-violet-300 ring-violet-400/30 bg-violet-400/10' },
+  { icon: 'store', label: 'Agentic Store', accent: 'text-indigo-300 ring-indigo-400/30 bg-indigo-400/10' },
+  { icon: 'trending-up', label: 'Merchant Agent', accent: 'text-amber-300 ring-amber-400/30 bg-amber-400/10' },
+  { icon: 'shield-check', label: 'AgentPay', accent: 'text-emerald-300 ring-emerald-400/40 bg-emerald-400/10' },
+  { icon: 'card', label: 'Razorpay', accent: 'text-sky-300 ring-sky-400/30 bg-sky-400/10' },
+  { icon: 'check-circle', label: 'Order', accent: 'text-slate-300 ring-slate-400/30 bg-slate-400/10' },
 ]
 
 /** AgentPay's dashboard: the problem it addresses, the full purchase pipeline, the buyer's active mandate, and the merchants an AI buyer can shop. */
@@ -421,7 +429,7 @@ export function LandingPage() {
               <div key={step.number} className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
                 <div className="flex items-center gap-3">
                   <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-white shadow-sm ${step.accent}`}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ${step.accent}`}
                   >
                     <Icon name={step.icon} className="h-5 w-5" />
                   </span>
@@ -452,7 +460,7 @@ export function LandingPage() {
                 <div key={node.label} className="flex items-center">
                   <div className="flex flex-col items-center gap-2">
                     <span
-                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-md ${node.accent}`}
+                      className={`flex h-12 w-12 items-center justify-center rounded-2xl ring-1 ${node.accent}`}
                     >
                       <Icon name={node.icon} className="h-5.5 w-5.5" />
                     </span>
